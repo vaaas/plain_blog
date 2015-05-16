@@ -1,0 +1,127 @@
+body {
+    padding: 0;
+    margin: auto;
+    max-width: 50em;
+    font-family: sans-serif;
+    background-color: #F5F5F5;
+    color: #FFFFFF;
+    line-height: 1.5em;
+    font-size: 10pt;
+}
+
+body > header {
+    background-color: #F44336;
+    font-size: 200%;
+    text-align: center;
+    padding: 0.5em;
+}
+
+a {
+    color: #3F51B5;
+    text-decoration: none;
+}
+
+a:hover { text-decoration: underline; }
+
+input[type="text"], textarea {
+    padding: 0.5em;
+    margin: 0.5em 0;
+    border: none;
+    box-shadow: 0 0.1em 0.2em rgba(0,0,0,0.33);
+    transition: box-shadow 0.5s ease;
+}
+
+input[type="text"]:focus, textarea:focus {
+    outline: none;
+    box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
+    transition: box-shadow 0.5s ease;
+}
+
+input[type="submit"] {
+    width: 10em;
+    padding: 0.5em;
+    margin-right: 1em;
+    background-color: #E0E0E0;
+    color: #000000;
+    border: none;
+    box-shadow: 0 0.1em 0.2em rgba(0,0,0,0.33);
+    transition: box-shadow 0.5s ease;
+}
+
+input[type="submit"]:hover, input[type="submit"]:focus {
+    outline: none;
+    box-shadow: 0 0.3em 0.6em rgba(0,0,0,0.33);
+    transition: box-shadow 0.5s ease;
+}
+
+input[type="submit"]:active {
+    box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
+    transition: box-shadow 0.05s ease;
+}
+
+input[type="submit"].accent {
+    background-color: #2979FF;
+    color: #FFFFFF;
+}
+
+input[type="submit"]:last-of-type {
+    margin-right: 0;
+}
+
+textarea {
+    min-height: 10em;
+}
+
+nav {
+    background-color: #F44336;
+    text-align: center;
+    padding-bottom: 1em;
+    margin-bottom: 1em;
+}
+
+nav > a {
+    margin: 0 1em;
+    color: #FFFFFF;
+    opacity: 0.7;
+}
+
+nav > a.active {
+    font-weight: bold;
+    opacity: 1.0;
+}
+
+section {
+    display: none;
+}
+
+section.active {
+    display: block;
+}
+
+#post_author input[type="text"] {
+    display: block;
+    width: 100%;
+}
+
+#post_author textarea {
+    width: 100%;
+}
+
+#post_author #input_container {
+    margin: 1em 0;
+    text-align: right;
+}
+
+#posts_list > table {
+    background: white;
+    width: 100%;
+    color: black;
+}
+
+#posts_list > table tr {
+    border-bottom: 1px solid black;
+}
+
+#posts_list > table tr:last-of-type {
+    border-bottom: none;
+}

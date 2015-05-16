@@ -8,4 +8,4 @@ nginx:
 	sudo install -m 644 -o root -g root blog.conf /etc/nginx/conf.d/
 
 static:
-	sudo install -m 440 -o nginx -g nginx admin.html /usr/local/share/www/blog/
+	sudo install -m 440 -o nginx -g nginx static/* /usr/local/share/www/blog/

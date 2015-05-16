@@ -14,7 +14,7 @@ var conf = {
 	},
 	auth: process.env.PASSWORD || "password",
 	pg: {
-		constring: process.env.PG_CONSTRING || "postgres://postgess:password@localhost/plain_blog"
+		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
 	}
 };
 
@@ -49,7 +49,7 @@ function extract_request_data (req, callback) {
 function is_authorised (password) {
 	if (!password) {
 		return false;
-	} else if (password === pg.auth) {
+	} else if (password === conf.auth) {
 		return true;
 	} else {
 		return false;
@@ -58,7 +58,7 @@ function is_authorised (password) {
 
 function code_response (num) {
 	return {
-		code: 200,
+		code: num,
 		message: {"Content-type": "text/plain"},
 		data: String (num)
 	};
@@ -73,7 +73,7 @@ function request_listener (req, res) {
 	function DRY (conf) { serve_response (conf, res); }
 	var purl = url.parse (req.url);
 	var pathparts = purl.pathname.split ("/");
-	
+
 	switch (pathparts[1]) {
 	case "admin":
 		if (is_authorised (req.headers["x-password"])) {
@@ -103,40 +103,41 @@ function admin_get_posts_element (postid, callback) {
 		if (err) {
 			return callback (code_response (500));
 		} else if (result.rowCount === 0) {
-			return callback (code_response (404));	
+			return callback (code_response (404));
 		} else {
-			return {
+			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
 				data: JSON.stringify ({
 					type: "post element",
 					data: result.rows[0]
 				})
-			};
+			});
 		}
 	});
 }
 
 function admin_put_posts_element (postid, data, callback) {
 	var n = parseInt (postid, 10);
-	if (!n || n < 1) {
+	var obj = JSON.parse(obj);
+	if (!n || n < 1 || !obj) {
 		return callback (code_response (400));
 	}
 	pg_query ({
-		text: "UPDATE posts SET contents = $1 WHERE id = $2;",
-		values: [data, n]
+		text: "UPDATE posts SET title=$1, categories=$2, contents = $3, WHERE id = $4;",
+		values: [obj.title, obj.categories, obj.contents, n]
 	}, function (err, result) {
 		if (err) {
 			return callback (code_response (500));
 		} else {
-			return {
+			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
 				data: JSON.stringify ({
 					type: "message",
 					data: result
 				})
-			};
+			});
 		}
 	});
 }
@@ -153,14 +154,14 @@ function admin_delete_posts_element (postid, callback) {
 		if (err) {
 			return callback (code_response (500));
 		} else {
-			return {
+			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
 				data: JSON.stringify ({
 					type: "message",
 					data: result
 				})
-			};
+			});
 		}
 	});
 }
@@ -173,34 +174,38 @@ function admin_get_posts_collection (callback) {
 		if (err) {
 			return callback (code_response (500));
 		} else {
-			return {
+			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
 				data: JSON.stringify ({
 					type: "posts collection",
 					data: result.rows
 				})
-			};
+			});
 		}
 	});
 }
 
 function admin_post_posts_collection (data, callback) {
+	var obj = JSON.parse(data);
+	if (!obj) {
+		return callback (code_response(400));
+	}
 	pg_query ({
-		text: "INSERT INTO posts (contents) VALUES ($1);",
-		values: [data]
+		text: "INSERT INTO posts (title, published, categories, contents) VALUES ($1, CURRENT_DATE, $2, $3);",
+		values: [obj.title, obj.categories, obj.contents]
 	}, function (err, result) {
 		if (err) {
 			return callback (code_response (500));
 		} else {
-			return {
+			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
 				data: JSON.stringify ({
 					type: "message",
 					data: result
 				})
-			};
+			});
 		}
 	});
 }
@@ -209,7 +214,7 @@ function admin_request_listener (req, res) {
 	function DRY (conf) { serve_response (conf, res); }
 	var purl = url.parse (req.url, true);
 	var pathparts = purl.pathname.split ("/");
-	
+
 	switch (pathparts[2]) {
 	case "posts":
 		if (pathparts[3]) {
@@ -219,7 +224,7 @@ function admin_request_listener (req, res) {
 				admin_get_posts_element (pathparts[3], DRY);
 				break;
 			case "PUT":
-				extract_request_data (function (data) {
+				extract_request_data (req, function (data) {
 					admin_put_posts_element (pathparts[3], data, DRY);
 				});
 				break;
@@ -237,7 +242,7 @@ function admin_request_listener (req, res) {
 				admin_get_posts_collection (DRY);
 				break;
 			case "POST":
-				extract_request_data (function (data) {
+				extract_request_data (req, function (data) {
 					admin_post_posts_collection (data, DRY);
 				});
 				break;
@@ -251,7 +256,7 @@ function admin_request_listener (req, res) {
 		if (pathparts[3]) {
 			switch (req.method) {
 			case "PUT":
-				extract_request_data (function (data) {
+				extract_request_data (req, function (data) {
 					admin_put_static_element (pathparts[3], data, DRY);
 				});
 				break;
@@ -268,7 +273,7 @@ function admin_request_listener (req, res) {
 				admin_get_static_collection (DRY);
 				break;
 			case "POST":
-				extract_request_data (function (data) {
+				extract_request_data (req, function (data) {
 					admin_post_static_collection (data, DRY);
 				});
 				break;

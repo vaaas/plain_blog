@@ -15,7 +15,8 @@ var conf = {
 	auth: process.env.PASSWORD || "password",
 	pg: {
 		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
-	}
+	},
+	static: "/usr/local/share/www/blog"
 };
 
 function pg_query (queryconf, callback) {
@@ -109,7 +110,7 @@ function admin_get_posts_element (postid, callback) {
 				code: 200,
 				message: {"Content-type": "application/json"},
 				data: JSON.stringify ({
-					type: "post element",
+					type: "posts element",
 					data: result.rows[0]
 				})
 			});
@@ -210,6 +211,24 @@ function admin_post_posts_collection (data, callback) {
 	});
 }
 
+function admin_get_files_collection (callback) {
+	fs.readdir (conf.static, function (err, files) {
+		if (err) {
+			console.error (err);
+			return callback (code_response(500));
+		} else {
+			return callback ({
+				code: 200,
+				message: {"Content-type": "application/json"},
+				data: JSON.stringify ({
+					type: "files collection",
+					data: files
+				})
+			});
+		}
+	});
+}
+
 function admin_request_listener (req, res) {
 	function DRY (conf) { serve_response (conf, res); }
 	var purl = url.parse (req.url, true);
@@ -252,16 +271,11 @@ function admin_request_listener (req, res) {
 			}
 		}
 		break;
-	case "static":
+	case "files":
 		if (pathparts[3]) {
 			switch (req.method) {
-			case "PUT":
-				extract_request_data (req, function (data) {
-					admin_put_static_element (pathparts[3], data, DRY);
-				});
-				break;
 			case "DELETE":
-				admin_delete_static_element (pathparts[3], DRY);
+				admin_delete_files_element (pathparts[3], DRY);
 				break;
 			default:
 				serve_response (code_response (405), res);
@@ -270,11 +284,11 @@ function admin_request_listener (req, res) {
 		} else {
 			switch (req.method) {
 			case "GET":
-				admin_get_static_collection (DRY);
+				admin_get_files_collection (DRY);
 				break;
 			case "POST":
 				extract_request_data (req, function (data) {
-					admin_post_static_collection (data, DRY);
+					admin_post_files_collection (data, DRY);
 				});
 				break;
 			default:
@@ -284,6 +298,9 @@ function admin_request_listener (req, res) {
 		}
 		break;
 	case "preview":
+		// todo
+		break;
+	case "auth":
 		// todo
 		break;
 	default:

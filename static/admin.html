@@ -1,7 +1,7 @@
 <!DOCTYPE.html>
 <html>
-<head>
 	<meta charset="utf-8">
+<head>
 	<title>Admin page</title>
 
 	<link rel="stylesheet" type="text/css" href="admin.css">
@@ -12,28 +12,18 @@
 	<header>Admin page</header>
 
 	<nav>
-		<a href="#" id="posts_link">Manage posts</a>
-		<a href="#" id="author_link">Create post</a>
-		<a href="#" id="static_link">Manage files</a>
-		<a href="#" id="upload_link">Upload file</a>
+		<a href="#" id="posts_list_link">Manage posts</a>
+		<a href="#" id="post_author_link">Create post</a>
+		<a href="#" id="files_list_link">Manage files</a>
+		<a href="#" id="file_author_link">Upload file</a>
 	</nav>
 
 	<main>
 		<section id="posts_list">
-			<table>
-				<thead>
-					<tr>
-						<th>ID</th>
-						<th>Title</th>
-						<th>Published</th>
-						<th colspan="2">Actions</th>
-					</tr>
-				</thead>
-				<tbody></tbody>
-			</table>
+			<ul></ul>
 		</section>
 
-		<section class="hidden" id="post_author">
+		<section id="post_author">
 			<input id="post_title" type="text" placeholder="Post title">
 			<textarea placeholder="HTML content"></textarea>
 			<input id="post_categories" type="text" placeholder="Post categories, separated by spaces">
@@ -43,10 +33,11 @@
 			</div>
 		</section>
 
-		<section id="static_list">
+		<section id="files_list">
+			<ul></ul>
 		</section>
 
-		<section id="static_author">
+		<section id="file_author">
 		</section>
 	</main>
 </body>

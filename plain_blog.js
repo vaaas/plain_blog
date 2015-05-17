@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* jshint -W083 */
 
 "use strict";
 
@@ -16,8 +17,10 @@ var conf = {
 	pg: {
 		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
 	},
-	static: "/usr/local/share/www/blog"
+	root: "/usr/local/share/www/blog"
 };
+
+process.chdir(conf.root);
 
 function pg_query (queryconf, callback) {
 	pg.connect (conf.pg.constring, function (err, client, done) {
@@ -212,7 +215,7 @@ function admin_post_posts_collection (data, callback) {
 }
 
 function admin_get_files_collection (callback) {
-	fs.readdir (conf.static, function (err, files) {
+	fs.readdir (conf.root, function (err, files) {
 		if (err) {
 			console.error (err);
 			return callback (code_response(500));
@@ -225,6 +228,35 @@ function admin_get_files_collection (callback) {
 					data: files
 				})
 			});
+		}
+	});
+}
+
+function admin_post_files_collection (data, callback) {
+	var obj = JSON.parse(data);
+	if (!obj) {
+		return callback (code_response(400));
+	}
+	for (var i = 0, len = obj.length; i < len; i++) {
+		try {
+			var fd = fs.openSync (conf.root + "/" + obj[i].name, "w", 288);
+			var buf = new Buffer (obj[i].data, "base64");
+			fs.writeSync (fd, buf, 0, buf.length, null);
+			fs.closeSync (fd);
+		} catch (e) {
+			console.error (e);
+			return callback (code_response (500));
+		}
+	}
+	return callback (code_response (200));
+}
+
+function admin_delete_files_element (file, callback) {
+	fs.unlink (conf.root + "/" + file, function (err) {
+		if (err) {
+			return callback (code_response (400));
+		} else {
+			return callback (code_response (200));
 		}
 	});
 }

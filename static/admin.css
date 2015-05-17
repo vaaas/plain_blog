@@ -25,6 +25,11 @@ a:hover { text-decoration: underline; }
 
 h1 > a { color: inherit; }
 
+li > h1 {
+    padding: 0;
+    margin: 0;
+}
+
 input[type="text"], textarea {
     padding: 0.5em;
     margin: 0.5em 0;
@@ -39,7 +44,11 @@ input[type="text"]:focus, textarea:focus {
     transition: box-shadow 0.5s ease;
 }
 
-input[type="submit"] {
+input[type="file"] {
+    color: black;
+}
+
+.button {
     width: 10em;
     padding: 0.5em;
     background-color: #E0E0E0;
@@ -49,27 +58,27 @@ input[type="submit"] {
     transition: box-shadow 0.5s ease;
 }
 
-input[type="submit"]:hover, input[type="submit"]:focus {
+.button:hover, .button:focus {
     outline: none;
     box-shadow: 0 0.3em 0.6em rgba(0,0,0,0.33);
     transition: box-shadow 0.5s ease;
 }
 
-input[type="submit"]:active {
+.button:active {
     box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
     transition: box-shadow 0.05s ease;
 }
 
-input[type="submit"].accent {
+.button.accent {
     background-color: #2979FF;
     color: #FFFFFF;
 }
 
-input[type="submit"].plain:hover, input[type="submit"].plain:focus {
+.button.plain:hover, .button.plain:focus {
     text-decoration: underline;
 }
 
-input[type="submit"]:last-of-type {
+.button:last-of-type {
     margin-right: 0;
 }
 
@@ -117,69 +126,64 @@ section.active {
     text-align: right;
 }
 
-#posts_list > ul {
+#posts_list {
     list-style: none;
     padding: 1em;
-    margin: 0;
     background: white;
     color: black;
 }
 
-#posts_list > ul > li {
+#posts_list > li {
     margin-bottom: 0.5em;
     padding-bottom: 0.5em;
     border-bottom: 1px solid rgba(0,0,0,0.3);
 }
 
-#posts_list > ul > li:last-of-type {
+#posts_list > li:last-of-type {
     margin-bottom: 0;
     padding-bottom: 0;
     border-bottom: none;
 }
 
-#posts_list > ul > li > h1 {
-    font-size: 150%;
-    margin: 0;
-    padding: 0;
-}
-
-#posts_list > ul > li > div > span {
+#posts_list > li > div > span {
     opacity: 0.3;
 }
 
-#posts_list > ul > li > div > a {
+#posts_list > li > div > a {
     margin: 0 0.5em;
     float: right;
 }
 
-#files_list > ul {
+#files_list {
     list-style: none;
     padding: 1em;
-    margin: 0;
     background: white;
     color: black;
 }
 
-#files_list > ul > li {
+#files_list > li {
     margin-bottom: 0.5em;
     padding-bottom: 0.5em;
     border-bottom: 1px solid rgba(0,0,0,0.3);
 }
 
-#files_list > ul > li:last-of-type {
+#files_list > li:last-of-type {
     margin-bottom: 0;
     padding-bottom: 0;
     border-bottom: none;
 }
 
-#files_list > ul > li > h1 {
+#files_list > li > h1 {
     display: inline;
-    font-size: 150%;
-    margin: 0;
-    padding: 0;
 }
 
-#files_list > ul > li > a {
+#files_list > li > a {
     margin: 0 0.5em;
     float: right;
+}
+
+#file_author {
+    text-align: center;
+    background: white;
+    padding: 1em;
 }

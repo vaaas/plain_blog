@@ -1,5 +1,6 @@
 /* jshint -W069 */
 /* jshint -W010 */
+/* jshint -W009 */
 var v = new Object();
 
 function clear_children (element) {
@@ -22,7 +23,6 @@ function XHR_listener () {
         render_files_list (obj.data);
         break;
     default:
-        console.log("swag");
         break;
     }
 }
@@ -39,11 +39,11 @@ function XHR (method, url, data) {
 }
 
 function render_files_list (rows) {
-    clear_children (v.elems["files_table"]);
+    clear_children (v.elems["files_list"]);
     for (var i = 0, len = rows.length; i < len; i++) {
         var row = document.createElement("li");
         render_file_row (row, rows[i]);
-        v.elems["files_table"].appendChild(row);
+        v.elems["files_list"].appendChild(row);
     }
 }
 
@@ -64,11 +64,11 @@ function render_file_row (parent, data) {
 }
 
 function render_posts_list (rows) {
-    clear_children (v.elems["posts_table"]);
+    clear_children (v.elems["posts_list"]);
     for (var i = 0, len = rows.length; i < len; i++) {
         var row = document.createElement("li");
         render_post_row (row, rows[i]);
-        v.elems["posts_table"].appendChild(row);
+        v.elems["posts_list"].appendChild(row);
     }
 }
 
@@ -102,21 +102,24 @@ function render_post_row (parent, data) {
 }
 
 function gen_edit_post_function (id) {
+    // todo
     return function () {
         console.log (id);
     };
 }
 
 function gen_delete_post_function (id) {
+    // todo
     return function () {
         console.log (id);
     };
 }
 
 function gen_delete_file_function (name) {
+    // todo
     return function () {
         console.log (name);
-    }
+    };
 }
 
 function post_entry () {
@@ -125,6 +128,35 @@ function post_entry () {
         contents: v.elems["post_area"].value,
         categories: v.elems["post_categories"].value.split(" ")
     }));
+}
+
+function file_entry () {
+    var reader = new FileReader();
+    var arr = new Array();
+    var i = 0;
+    var len = v.elems["file_input"].files.length;
+    var file = v.elems["file_input"].files.item(i);
+
+    reader.onloadend = function () {
+        arr.push ({
+            name: file.name,
+            data: reader.result.split(",")[1]
+        });
+        i += 1;
+        file = v.elems["file_input"].files.item(i);
+        if (i < len) {
+            read_file();
+        } else {
+            console.log(arr);
+            XHR ("POST", "/admin/files", JSON.stringify(arr));
+        }
+    };
+
+    function read_file () {
+        reader.readAsDataURL(file);
+    }
+
+    read_file();
 }
 
 function deactivate_nav () {
@@ -187,8 +219,8 @@ function main () {
         post_submit: document.querySelector ("#post_submit"),
         post_preview: document.querySelector ("#post_preview"),
 
-        posts_table: document.querySelector ("#posts_list > ul"),
-        files_table: document.querySelector ("#files_list > ul"),
+        file_input: document.querySelector ("#file_author > input[type='file']"),
+        file_submit: document.querySelector ("#file_author > input[type='submit']"),
     };
 
     v.elems["post_author_link"].onclick = activate_post_author;
@@ -197,6 +229,7 @@ function main () {
     v.elems["posts_list_link"].onclick = activate_posts_list;
 
     v.elems["post_submit"].onclick = post_entry;
+    v.elems["file_submit"].onclick = file_entry;
 
     v.password = prompt ("Please enter the password");
 }

@@ -20,7 +20,6 @@
 
 	<main>
 		<section id="posts_list">
-			<ul></ul>
 		</section>
 
 		<section id="post_author">
@@ -28,16 +27,17 @@
 			<textarea placeholder="HTML content"></textarea>
 			<input id="post_categories" type="text" placeholder="Post categories, separated by spaces">
 			<div id="input_container">
-				<input id="post_preview" type="submit" value="PREVIEW">
-				<input id="post_submit" class="accent" type="submit" value="SUBMIT">
+				<input class="button" id="post_preview" type="submit" value="PREVIEW">
+				<input id="post_submit" class="button accent" type="submit" value="SUBMIT">
 			</div>
 		</section>
 
 		<section id="files_list">
-			<ul></ul>
 		</section>
 
 		<section id="file_author">
+			<input type="file" multiple>
+			<input type="submit" value="UPLOAD">
 		</section>
 	</main>
 </body>

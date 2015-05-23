@@ -2,6 +2,7 @@
 /* jshint -W010 */
 /* jshint -W009 */
 var v = new Object();
+v.editing = null;
 
 function clear_children (element) {
     while (element.hasChildNodes()) {
@@ -22,20 +23,30 @@ function XHR_listener () {
     case "files collection":
         render_files_list (obj.data);
         break;
+    case "posts element":
+        render_post_edit (obj.data);
+        break;
     default:
         break;
     }
 }
 
-function XHR (method, url, data) {
+function XHR (method, url, data, callback) {
     var req = new XMLHttpRequest();
-    req.onload = XHR_listener;
+    req.onload = callback || XHR_listener;
     req.open (method, url, true);
     req.setRequestHeader ("x-password", v.password);
     if (data)
         req.send (data);
     else
         req.send();
+}
+
+function render_post_edit (data) {
+    v.elems["post_title"].value = data.title;
+    v.elems["post_area"].value = data.contents;
+    v.elems["post_categories"].value = data.categories.join(" ");
+    v.editing = data.id;
 }
 
 function render_files_list (rows) {
@@ -58,7 +69,7 @@ function render_file_row (parent, data) {
     var delete_button = document.createElement("a");
     delete_button.href ="#";
     delete_button.innerText = "DELETE";
-    delete_button.onclick = gen_delete_file_function(data);
+    delete_button.onclick = gen_delete_file_function (data, parent);
 
     parent.appendChild (delete_button);
 }
@@ -95,39 +106,44 @@ function render_post_row (parent, data) {
     var delete_button = document.createElement("a");
     delete_button.href = "#";
     delete_button.innerText = "DELETE";
-    delete_button.onclick = gen_delete_post_function (data.id);
+    delete_button.onclick = gen_delete_post_function (data.id, parent);
     container.appendChild (delete_button);
 
     parent.appendChild (container);
 }
 
 function gen_edit_post_function (id) {
-    // todo
     return function () {
-        console.log (id);
+        activate_post_author ();
+        XHR ("GET", "/admin/posts/" + id);
     };
 }
 
-function gen_delete_post_function (id) {
-    // todo
+function gen_delete_post_function (id, elem) {
     return function () {
-        console.log (id);
+        XHR ("DELETE", "/admin/posts/" + id);
+        v.elems["posts_list"].removeChild (elem);
     };
 }
 
-function gen_delete_file_function (name) {
-    // todo
+function gen_delete_file_function (name, elem) {
     return function () {
-        console.log (name);
+        XHR ("DELETE", "/admin/files/" + name);
+        v.elems["files_list"].removeChild (elem);
     };
 }
 
 function post_entry () {
-    XHR ("POST", "/admin/posts", JSON.stringify ({
+    var data = JSON.stringify ({
         title: v.elems["post_title"].value,
         contents: v.elems["post_area"].value,
         categories: v.elems["post_categories"].value.split(" ")
-    }));
+    });
+    if (v.editing === null) {
+        XHR ("POST", "/admin/posts", data);
+    } else {
+        XHR ("PUT", "/admin/posts" + v.editing, data);
+    }
 }
 
 function file_entry () {
@@ -185,6 +201,7 @@ function activate_post_author () {
     v.elems["post_categories"].value = "";
     v.elems["post_author"].className = "active";
     v.elems["post_author_link"].className = "active";
+    v.editing = null;
 }
 
 function activate_files_list () {

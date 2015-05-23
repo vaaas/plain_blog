@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 /* jshint -W083 */
+/* jshint -W069 */
+/* jshint -W010 */
+/* jshint -W009 */
 
 "use strict";
 
@@ -17,10 +20,13 @@ var conf = {
 	pg: {
 		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
 	},
-	root: "/usr/local/share/www/blog"
+	dirs: {
+		static: process.env.DIR_STATIC || "/usr/local/share/blog/static",
+		templates: process.env.DIR_TEMPLATES || "/usr/local/share/blog/templates"
+	},
 };
 
-process.chdir(conf.root);
+var templates = new Object();
 
 function pg_query (queryconf, callback) {
 	pg.connect (conf.pg.constring, function (err, client, done) {
@@ -73,9 +79,35 @@ function serve_response (conf, res) {
 	res.end (conf.data);
 }
 
+function sql_generator (query) {
+	//todo
+}
+
+function get_posts_collection (query, callback) {
+	var qc = sql_generator (query);
+	pg_query (qc, function (err, result) {
+		if (err) {
+			console.error (err);
+			return callback (code_response (500));
+		} else {
+			callback ({
+				code: 200,
+				message: {"Content-type": "text/html"},
+				data: JSON.stringify (templates["posts"] ({
+					category: query.category ? query.category : null,
+					first: query.before ? true : false,
+					last: result.rowCount === 10 ? true : false,
+					first
+					posts: result.rows
+				}))
+			});
+		}
+	});
+}
+
 function request_listener (req, res) {
 	function DRY (conf) { serve_response (conf, res); }
-	var purl = url.parse (req.url);
+	var purl = url.parse (req.url, true);
 	var pathparts = purl.pathname.split ("/");
 
 	switch (pathparts[1]) {
@@ -87,7 +119,7 @@ function request_listener (req, res) {
 		}
 		break;
 	case "posts":
-		// todo
+		get_posts_collection (url.query, DRY);
 		break;
 	default:
 		serve_response (code_response (400), res);
@@ -215,7 +247,7 @@ function admin_post_posts_collection (data, callback) {
 }
 
 function admin_get_files_collection (callback) {
-	fs.readdir (conf.root, function (err, files) {
+	fs.readdir (conf.dirs.static, function (err, files) {
 		if (err) {
 			console.error (err);
 			return callback (code_response(500));
@@ -239,7 +271,7 @@ function admin_post_files_collection (data, callback) {
 	}
 	for (var i = 0, len = obj.length; i < len; i++) {
 		try {
-			var fd = fs.openSync (conf.root + "/" + obj[i].name, "w", 288);
+			var fd = fs.openSync (conf.dirs.static + "/" + obj[i].name, "w", 288);
 			var buf = new Buffer (obj[i].data, "base64");
 			fs.writeSync (fd, buf, 0, buf.length, null);
 			fs.closeSync (fd);
@@ -252,8 +284,10 @@ function admin_post_files_collection (data, callback) {
 }
 
 function admin_delete_files_element (file, callback) {
-	fs.unlink (conf.root + "/" + file, function (err) {
+	console.log ("deleting something!");
+	fs.unlink (conf.dirs.static + "/" + file, function (err) {
 		if (err) {
+			console.error (err);
 			return callback (code_response (400));
 		} else {
 			return callback (code_response (200));
@@ -341,7 +375,19 @@ function admin_request_listener (req, res) {
 	}
 }
 
+function compile_templates () {
+	var files = fs.readdirSync (conf.dirs.templates);
+	for (var i = 0, len = files.length; i < len; i++) {
+		templates[files[i]] = dot.template (
+			fs.readFileSync (
+				files[i], {"encoding": "utf-8"}
+			)
+		);
+	}
+}
+
 function main () {
+	compile_templates ();
 	var server = http.createServer();
 	server.on ("request", request_listener);
 	server.listen (conf.http.port, "127.0.0.1");

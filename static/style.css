@@ -1,0 +1,171 @@
+body, html { min-height: 100%;
+}
+
+body {
+	padding: 0;
+	margin: 0;
+	font-family: sans-serif;
+	font-size: 10pt;
+	background-repeat: no-repeat;
+	background-attachment: fixed;
+	background: url("noise.png"),
+		linear-gradient(to bottom, #455a64, #607d8b);
+}
+
+a {
+	color: #3f51b5;
+	text-decoration: none;
+}
+
+a:hover { text-decoration: underline;
+}
+
+h1 > a {
+	color: inherit;
+}
+
+h1,h2,h3,h4,h5,h6 {
+	padding: 0;
+	margin: 0;
+}
+
+h1 {
+	font-size: 2em;
+	margin-bottom: 0.25em;
+}
+
+p {
+	line-height: 1.5em; 
+	margin-bottom: 1em;
+}
+
+p:last-of-type { margin-bottom: 0;
+}
+
+blockquote {
+	padding: 0;
+	margin: 0;
+	padding-left: 1em;
+	margin-left: 1em;
+	border-left: 0.25em dotted black;
+}
+
+figure > img {
+	display: block;
+	width: 100%;
+}
+
+figure > figcaption {
+	opacity: 0.7;
+	text-align: center;
+}
+
+.card {
+	border-radius: 0.25em;
+	box-shadow: 0 0.1em 0.2em rgba(0,0,0,0.25);
+	transition: all ease 0.3s;
+}
+
+.card:hover {
+	box-shadow: 0 0.4em 0.8em rgba(0,0,0,0.25);
+	transition: all ease 0.3s;
+}
+
+header {
+	background-color: #3f51b5;
+	padding: 1em;
+	text-align: center;
+	text-shadow: 0.1em 0.1em 0.1em black;
+}
+
+header > img {
+	margin: auto;
+	display: block;
+	border: 1em solid white;
+	border-radius: 100%;
+}
+
+header > h1 {
+	font-family: serif;
+	color: white;
+}
+
+header > h2 {
+	font-size: 1em;
+	color: white;
+	opacity: 0.70;
+	max-width: 40em;
+	margin: auto;
+}
+
+main {
+	max-width: 42em;
+	margin: 1em auto;
+}
+
+main#post {
+	max-width: 40em;
+	margin: 1em auto;
+	padding: 1em;
+	background: white;
+	border-radius: 0.25em;
+}
+
+article > h1:first-of-type, main#post > h1:first-of-type {
+	text-align: center;
+	font-family: serif;
+}
+	
+article > .published, main#post > .published {
+	text-align: center;
+	font-size: 1em;
+	font-family: monospace;
+	opacity: 0.7;
+}
+
+article {
+	padding: 1em;
+	margin-bottom: 1em;
+	background: white;
+}
+	
+article > .readmore {
+	text-shadow: 0.1em 0.1em 0.1em black;
+	width: 10em;
+	text-align: center;
+	margin: auto;
+	margin-top: 0.5em;
+	padding: 1em;
+	color: white;
+	background-color: #3f51b5;
+	font-weight: bold;
+	display: block;
+}
+	
+article > .readmore:hover {
+	background-color: #7986cb;
+	text-decoration: none;
+}
+
+article:last-of-type { margin-bottom: 0;
+}
+
+article img { max-width: 100%;
+}
+
+nav {
+	text-align: center;
+	margin: 2em auto;
+}
+
+nav > a {
+	text-shadow: 0.1em 0.1em 0.1em black;
+	color: white;
+	background: #e91e63;
+	padding: 1em;
+	margin: 0 0.5em;
+}
+
+nav > a:hover {
+	text-decoration: none;
+}

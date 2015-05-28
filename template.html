@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="A blog that is very plain">
+    <link rel="stylesheet" href="style.css">
+    <link rel="alternate" type="application/rss+xml" href="/feeds/rss.xml">
+    <link rel="alternate" type="application/atom+xml" href="/feeds/atom.xml">
+    <title>Plain Blog</title>
+</head>
+<body>
+<header>
+    <img src="portrait.jpg" width="124" height="124">
+    <h1><a href="/">Plain Blog</a></h1>
+    <h2>A blog that is very plain</h2>
+</header>
+
+{{? it.type === "list"}}
+    <main id="list">
+        <article class="card">
+            <h1><a href="$(basename $f)">
+                {{=it.title}}
+            </a></h1>
+            <div class="published">Posted on {{=it.published}}</div>
+        </article>
+    </main>
+    <nav>
+        {{? !it.first}}
+            <a class="button" id="prev" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}before={{=it.firstid}}">← Previous</a>
+        {{?}}
+        {{? !it.last}}
+            <a class="button" id="next" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}after={{=it.lastid}}">Next →</a>
+        {{?}}
+    </nav>
+{{?}}
+
+</body>
+</html>

@@ -1,4 +1,4 @@
-all: nginx static
+all: dirs nginx static
 
 dirs:
 	sudo mkdir -p /usr/local/share/blog/ /usr/local/share/blog/templates /usr/local/share/blog/static

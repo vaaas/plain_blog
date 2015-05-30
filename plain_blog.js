@@ -21,12 +21,13 @@ var conf = {
 		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
 	},
 	dirs: {
+		root: "./",
 		static: process.env.DIR_STATIC || "/usr/local/share/blog/static",
 		templates: process.env.DIR_TEMPLATES || "/usr/local/share/blog/templates"
 	},
 };
 
-var templates = new Object();
+var template = null;
 
 function pg_query (queryconf, callback) {
 	pg.connect (conf.pg.constring, function (err, client, done) {
@@ -41,7 +42,7 @@ function pg_query (queryconf, callback) {
 				console.error ("error running query", err);
 				return callback (err);
 			}
-			callback (null, result);
+			return callback (null, result);
 		});
 	});
 }
@@ -80,26 +81,99 @@ function serve_response (conf, res) {
 }
 
 function sql_generator (query) {
-	//todo
+	if (!query) {
+		return {
+			text: "SELECT * FROM posts ORDER BY id LIMIT 10;",
+			values: []
+		};
+	}
+
+	var arr = new Array();
+	var vals = new Array();
+	var counter = 1;
+	var id = null;
+	var verb = "WHERE";
+	var reverse = false;
+
+	arr.push ("SELECT * FROM posts");
+	if (query.category) {
+		arr.push (verb + " $" + counter + " = ANY(categories)");
+		vals.push(query.category);
+		counter += 1;
+		verb = "AND";
+	}
+	if (query.after) {
+		id = parseInt (query.after, 10);
+		if (id && id >= 1) {
+			arr.push (verb + " id > $" + counter);
+			vals.push (id);
+			counter += 1;
+		}
+	} else if (query.prev) {
+		id = parseInt (query.after, 10);
+		if (id && id >= 1) {
+			arr.push (verb + " id > $" + counter);
+			vals.push (id);
+			counter += 1;
+			reverse = true;
+		}
+	}
+	if (reverse) {
+		arr.push ("ORDER BY id DESC");
+	} else {
+		arr.push ("ORDER BY id ASC");
+	}
+
+	arr.push ("LIMIT 10;");
+
+	return {
+		text: arr.join("\n"),
+		values: vals
+	};
 }
 
 function get_posts_collection (query, callback) {
 	var qc = sql_generator (query);
 	pg_query (qc, function (err, result) {
 		if (err) {
-			console.error (err);
 			return callback (code_response (500));
+		} else if (result.rowCount === 0) {
+			return callback (code_response (404));
 		} else {
-			callback ({
+			return callback ({
 				code: 200,
 				message: {"Content-type": "text/html"},
-				data: JSON.stringify (templates["posts"] ({
-					category: query.category ? query.category : null,
-					first: query.before ? true : false,
-					last: result.rowCount === 10 ? true : false,
-					first
+				data: template ({
+					type: "collection",
+					category: (query && query.category) ? query.category : null,
 					posts: result.rows
-				}))
+				})
+			});
+		}
+	});
+}
+
+function get_posts_element (id, callback) {
+	id = parseInt (id, 10);
+	if (!id || id < 1) {
+		return callback (code_response (400));
+	}
+	pg_query ({
+		text: "SELECT * FROM posts WHERE id = $1;",
+		values: [id]
+	}, function (err, result) {
+		if (err) {
+			return callback (code_response (500));
+		} else if (result.rowCount === 0) {
+			return callback (code_response (404));
+		} else {
+			return callback ({
+				code: 200,
+				message: {"Content-type": "text/html"},
+				data: template ({
+					type: "element",
+					post: result.rows[0]
+				})
 			});
 		}
 	});
@@ -119,7 +193,11 @@ function request_listener (req, res) {
 		}
 		break;
 	case "posts":
-		get_posts_collection (url.query, DRY);
+		if (pathparts [2]) {
+			get_posts_element (pathparts[2], DRY);
+		} else {
+			get_posts_collection (purl.query, DRY);
+		}
 		break;
 	default:
 		serve_response (code_response (400), res);
@@ -228,8 +306,8 @@ function admin_post_posts_collection (data, callback) {
 		return callback (code_response(400));
 	}
 	pg_query ({
-		text: "INSERT INTO posts (title, published, categories, contents) VALUES ($1, CURRENT_DATE, $2, $3);",
-		values: [obj.title, obj.categories, obj.contents]
+		text: "INSERT INTO posts (title, published, categories, blurb, contents) VALUES ($1, CURRENT_DATE, $2, $3, $4);",
+		values: [obj.title, obj.categories, obj.blurb, obj.contents]
 	}, function (err, result) {
 		if (err) {
 			return callback (code_response (500));
@@ -249,7 +327,7 @@ function admin_post_posts_collection (data, callback) {
 function admin_get_files_collection (callback) {
 	fs.readdir (conf.dirs.static, function (err, files) {
 		if (err) {
-			console.error (err);
+			console.error ("Error reading directory", err);
 			return callback (code_response(500));
 		} else {
 			return callback ({
@@ -275,8 +353,8 @@ function admin_post_files_collection (data, callback) {
 			var buf = new Buffer (obj[i].data, "base64");
 			fs.writeSync (fd, buf, 0, buf.length, null);
 			fs.closeSync (fd);
-		} catch (e) {
-			console.error (e);
+		} catch (err) {
+			console.error ("Error writing file", err);
 			return callback (code_response (500));
 		}
 	}
@@ -284,10 +362,9 @@ function admin_post_files_collection (data, callback) {
 }
 
 function admin_delete_files_element (file, callback) {
-	console.log ("deleting something!");
 	fs.unlink (conf.dirs.static + "/" + file, function (err) {
 		if (err) {
-			console.error (err);
+			console.error ("Error deleting file", err);
 			return callback (code_response (400));
 		} else {
 			return callback (code_response (200));
@@ -375,19 +452,13 @@ function admin_request_listener (req, res) {
 	}
 }
 
-function compile_templates () {
-	var files = fs.readdirSync (conf.dirs.templates);
-	for (var i = 0, len = files.length; i < len; i++) {
-		templates[files[i]] = dot.template (
-			fs.readFileSync (
-				files[i], {"encoding": "utf-8"}
-			)
-		);
-	}
-}
-
 function main () {
-	compile_templates ();
+	template = dot.template (
+		fs.readFileSync (
+			conf.dirs.root + "/template.html",
+			{"encoding": "utf-8"}
+		)
+	);
 	var server = http.createServer();
 	server.on ("request", request_listener);
 	server.listen (conf.http.port, "127.0.0.1");

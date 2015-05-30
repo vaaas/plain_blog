@@ -1,6 +1,7 @@
-/* jshint -W069 */
-/* jshint -W010 */
 /* jshint -W009 */
+/* jshint -W010 */
+/* jshint -W069 */
+
 var v = new Object();
 v.editing = null;
 
@@ -44,7 +45,8 @@ function XHR (method, url, data, callback) {
 
 function render_post_edit (data) {
     v.elems["post_title"].value = data.title;
-    v.elems["post_area"].value = data.contents;
+    v.elems["post_blurb"].value = data.blurb;
+    v.elems["post_content"].value = data.contents;
     v.elems["post_categories"].value = data.categories.join(" ");
     v.editing = data.id;
 }
@@ -136,7 +138,8 @@ function gen_delete_file_function (name, elem) {
 function post_entry () {
     var data = JSON.stringify ({
         title: v.elems["post_title"].value,
-        contents: v.elems["post_area"].value,
+        blurb: v.elems["post_blurb"].value,
+        contents: v.elems["post_content"].value,
         categories: v.elems["post_categories"].value.split(" ")
     });
     if (v.editing === null) {
@@ -197,7 +200,8 @@ function activate_posts_list () {
 function activate_post_author () {
     deactivate_nav();
     v.elems["post_title"].value = "";
-    v.elems["post_area"].value = "";
+    v.elems["post_blurb"].value = "";
+    v.elems["post_content"].value = "";
     v.elems["post_categories"].value = "";
     v.elems["post_author"].className = "active";
     v.elems["post_author_link"].className = "active";
@@ -230,7 +234,8 @@ function main () {
         file_author_link: document.querySelector ("#file_author_link"),
 
         post_title: document.querySelector ("#post_title"),
-        post_area: document.querySelector ("#post_author > textarea"),
+        post_blurb: document.querySelector ("#post_author > #blurb"),
+        post_content: document.querySelector ("#post_author > #content"),
         post_categories: document.querySelector ("#post_categories"),
 
         post_submit: document.querySelector ("#post_submit"),

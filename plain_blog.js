@@ -22,8 +22,6 @@ var conf = {
 	},
 	dirs: {
 		root: "./",
-		static: process.env.DIR_STATIC || "/usr/local/share/blog/static",
-		templates: process.env.DIR_TEMPLATES || "/usr/local/share/blog/templates"
 	},
 };
 

@@ -30,6 +30,11 @@ li > h1 {
 	margin: 0;
 }
 
+form {
+	padding: 0;
+	margin: 0;
+}
+
 input[type="text"], input[type="password"], textarea {
 	padding: 0.5em;
 	margin: 0.5em 0;
@@ -121,6 +126,7 @@ section.active {
 	background: black;
 	opacity: 0.5;
 	display: none;
+	z-index: 1000;
 }
 
 #dialog {
@@ -136,6 +142,7 @@ section.active {
 	border-radius: 0.2em;
 	box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
 	padding: 1em;
+	z-index: 1001;
 }
 
 #post_author input[type="text"] {

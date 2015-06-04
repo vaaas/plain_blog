@@ -222,6 +222,7 @@ function activate_file_author () {
 }
 
 function show_dialog (init_function) {
+	clear_children(v.elems["dialog"]);
 	v.elems["dialog-backdrop"].style.display = "block";
 	v.elems["dialog"].style.display = "block";
 	init_function (v.elems["dialog"]);
@@ -230,10 +231,12 @@ function show_dialog (init_function) {
 function hide_dialog () {
 	v.elems["dialog-backdrop"].style.display = "none";
 	v.elems["dialog"].style.display = "none";
-	v.elems["dialog"] = "";
+	clear_children(v.elems["dialog"]);
 }
 
 function password_dialog (dialog) {
+	var form = document.createElement ("form");
+	
 	var password = document.createElement ("input");
 	password.type = "password";
 	password.placeholder = "Password";
@@ -242,9 +245,52 @@ function password_dialog (dialog) {
 	submit.type = "submit";
 	submit.value = "SUBMIT";
 	submit.className = "accent";
+	
+	form.appendChild (password);
+	form.appendChild (submit);
+	
+	form.onsubmit = send_password;
+	
+	dialog.appendChild (form);
+	
+	password.focus();
+	
+	function send_password () {
+		var req = new XMLHttpRequest();
+		req.onload = response_listener;
+		req.open ("GET", "/admin/auth", true);
+		req.setRequestHeader ("x-password", password.value);
+		req.send();
+		return false;
+	}
+	
+	function response_listener () {
+		switch (this.status) {
+		case 200:
+			v.password = password.value;
+			show_dialog (info_dialog ("Authentication successful."));
+			break;
+		default:
+			//todo
+			break;
+		}
+	}
+}
 
-	dialog.appendChild (password);
-	dialog.appendChild (submit);
+function info_dialog (text) {
+	return function (dialog) {
+		var info = document.createElement ("p");
+		info.innerText = text;
+		
+		var ok = document.createElement ("input");
+		ok.type = "submit";
+		ok.value = "OK";
+		
+		ok.onclick = hide_dialog;
+		
+		dialog.appendChild (info);
+		dialog.appendChild (ok);
+	};
 }
 
 function main () {

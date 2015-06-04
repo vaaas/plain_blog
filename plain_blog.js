@@ -444,7 +444,7 @@ function admin_request_listener (req, res) {
 		// todo
 		break;
 	case "auth":
-		// todo
+		serve_response (code_response (200), res);
 		break;
 	default:
 		serve_response (code_response (400), res);

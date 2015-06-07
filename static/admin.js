@@ -11,29 +11,12 @@ function clear_children (element) {
 	}
 }
 
-function XHR_listener () {
-	var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
-	switch (obj.type) {
-	case "posts collection":
-		render_posts_list (obj.data);
-		break;
-	case "files collection":
-		render_files_list (obj.data);
-		break;
-	case "posts element":
-		render_post_edit (obj.data);
-		break;
-	default:
-		break;
-	}
-}
-
 function XHR (method, url, data, callback) {
 	var req = new XMLHttpRequest();
 	req.open (method, url, true);
 	req.setRequestHeader ("x-password", v.password);
 	
-	req.onload = callback || XHR_listener;
+	req.onload = callback;
 	req.onloadstart = show_progress;
 	req.onloadend = hide_progress;
 	req.onprogress = update_progress;
@@ -118,25 +101,50 @@ function render_post_row (parent, data) {
 function gen_edit_post_function (id) {
 	return function () {
 		activate_post_author ();
-		XHR ("GET", "/admin/posts/" + id);
+		XHR ("GET", "/admin/posts/" + id, null, function () {
+			if (this.status === 200) {
+				var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
+				render_post_edit (obj);
+			} else {
+				//todo
+			}
+		});
 	};
 }
 
 function gen_delete_post_function (id, elem) {
 	return function () {
-		XHR ("DELETE", "/admin/posts/" + id);
-		v.elems["posts_list"].removeChild (elem);
+		XHR ("DELETE", "/admin/posts/" + id, null, function () {
+			if (this.status === 200) {
+				v.elems["posts_list"].removeChild (elem);
+			} else {
+				//todo
+			}
+		});
 	};
 }
 
 function gen_delete_file_function (name, elem) {
 	return function () {
-		XHR ("DELETE", "/admin/files/" + name);
-		v.elems["files_list"].removeChild (elem);
+		XHR ("DELETE", "/admin/files/" + name, null, function () {
+			if (this.status === 200) {
+				v.elems["files_list"].removeChild (elem);
+			} else {
+				//todo
+			}
+		});
 	};
 }
 
 function post_entry () {
+	function DRY () {
+		if (this.status === 200) {
+			//todo
+			deactivate_nav ();
+		} else {
+			//todo
+		}
+	}
 	var data = JSON.stringify ({
 		title: v.elems["post_title"].value,
 		blurb: v.elems["post_blurb"].value,
@@ -144,9 +152,9 @@ function post_entry () {
 		categories: v.elems["post_categories"].value.split(" ")
 	});
 	if (v.editing === null) {
-		XHR ("POST", "/admin/posts", data);
+		XHR ("POST", "/admin/posts", data, DRY);
 	} else {
-		XHR ("PUT", "/admin/posts" + v.editing, data);
+		XHR ("PUT", "/admin/posts" + v.editing, data, DRY);
 	}
 }
 
@@ -171,7 +179,14 @@ function file_entry () {
 		if (i < len) {
 			read_file();
 		} else {
-			XHR ("POST", "/admin/files", JSON.stringify(arr));
+			XHR ("POST", "/admin/files", JSON.stringify(arr), function () {
+				if (this.status === 200) {
+					deactivate_nav();
+					//todo
+				} else {
+					//todo
+				}
+			});
 		}
 	};
 
@@ -198,7 +213,14 @@ function activate_posts_list () {
 	deactivate_nav();
 	v.elems["posts_list"].className = "active";
 	v.elems["posts_list_link"].className = "active";
-	XHR ("GET", "/admin/posts");
+	XHR ("GET", "/admin/posts", null, function () {
+		if (this.status === 200) {
+			var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
+			render_posts_list (obj);
+		} else {
+			//todo
+		}
+	});
 }
 
 function activate_post_author () {
@@ -216,7 +238,14 @@ function activate_files_list () {
 	deactivate_nav();
 	v.elems["files_list"].className = "active";
 	v.elems["files_list_link"].className = "active";
-	XHR ("GET", "/admin/files");
+	XHR ("GET", "/admin/files", null, function () {
+		if (this.status === 200) {
+			var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
+			render_files_list (obj);
+		} else {
+			//todo
+		}
+	});
 }
 
 function activate_file_author () {
@@ -333,7 +362,7 @@ function hide_progress () {
 	}, 200);
 }
 
-function update_progress (event) {
+function update_progress () {
 	switch (v.progress) {
 	case 0:
 		v.progress = 25;
@@ -342,7 +371,7 @@ function update_progress (event) {
 		v.progress = 50;
 		break;
 	default:
-		v.progress = (v.progress + 100) / 2
+		v.progress = (v.progress + 100) / 2;
 		break;
 	}
 	v.elems["progressbar"].style.width = String (v.progress) + "%";

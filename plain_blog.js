@@ -220,7 +220,7 @@ function admin_get_posts_element (postid, callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify (result.rows[0]);
+				data: JSON.stringify (result.rows[0])
 			});
 		}
 	});
@@ -228,8 +228,9 @@ function admin_get_posts_element (postid, callback) {
 
 function admin_put_posts_element (postid, data, callback) {
 	var n = parseInt (postid, 10);
+	var obj = null;
 	try {
-		var obj = JSON.parse(obj);
+		obj = JSON.parse(data);
 	} catch (err) {
 		return callback (code_response (400));
 	}
@@ -246,7 +247,7 @@ function admin_put_posts_element (postid, data, callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify (result);
+				data: JSON.stringify (result)
 			});
 		}
 	});
@@ -267,7 +268,7 @@ function admin_delete_posts_element (postid, callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify ({result})
+				data: JSON.stringify (result)
 			});
 		}
 	});
@@ -284,18 +285,16 @@ function admin_get_posts_collection (callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify ({
-					type: "posts collection",
-					data: result.rows
-				})
+				data: JSON.stringify (result.rows)
 			});
 		}
 	});
 }
 
 function admin_post_posts_collection (data, callback) {
+	var obj = null;
 	try {
-		var obj = JSON.parse(data);
+		obj = JSON.parse(data);
 	} catch (err) {
 		return callback (code_response (400));
 	}
@@ -312,10 +311,7 @@ function admin_post_posts_collection (data, callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify ({
-					type: "message",
-					data: result
-				})
+				data: JSON.stringify (result)
 			});
 		}
 	});
@@ -330,18 +326,16 @@ function admin_get_files_collection (callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify ({
-					type: "files collection",
-					data: files
-				})
+				data: JSON.stringify (files)
 			});
 		}
 	});
 }
 
 function admin_post_files_collection (data, callback) {
+	var obj = null;
 	try {
-		var obj = JSON.parse(data);
+		obj = JSON.parse(data);
 	} catch (err) {
 		return callback (code_response (400));
 	}
@@ -371,8 +365,9 @@ function admin_delete_files_element (file, callback) {
 }
 
 function admin_preview (data, callback) {
+	var obj = null;
 	try {
-		var obj = JSON.parse (data);
+		obj = JSON.parse (data);
 	} catch (err) {
 		return callback (code_response (400));
 	}

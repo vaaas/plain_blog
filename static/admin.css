@@ -35,6 +35,11 @@ form {
 	margin: 0;
 }
 
+input, textarea {
+	box-sizing: border-box;
+	border-radius: 0.2em;
+}
+
 input[type="text"], input[type="password"], textarea {
 	padding: 0.5em;
 	margin: 0.5em 0;
@@ -83,10 +88,6 @@ input[type="submit"].plain:hover, input[type="submit"].plain:focus {
 	text-decoration: underline;
 }
 
-input[type="submit"]:last-of-type {
-	margin-right: 0;
-}
-
 textarea {
 	min-height: 10em;
 }
@@ -124,9 +125,15 @@ section.active {
 	right: 0;
 	bottom: 0;
 	background: black;
-	opacity: 0.5;
+	opacity: 0;
 	display: none;
-	z-index: 1000;
+	z-index: 999;
+	transition: opacity 0.2s ease;
+}
+
+#backdrop.end {
+	opacity: 0.5;
+	transition: opacity 0.2s ease;
 }
 
 #dialog {
@@ -134,7 +141,7 @@ section.active {
 	position: fixed;
 	top: 50%;
 	left: 50%;
-	transform: translate(-50%, -50%);
+	transform: translate(-50%, -50%) scale(0.8);
 	max-width: 50em;
 	max-height: 20em;
 	background: white;
@@ -142,7 +149,27 @@ section.active {
 	border-radius: 0.2em;
 	box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
 	padding: 1em;
-	z-index: 1001;
+	z-index: 1000;
+	opacity: 0;
+	transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#dialog.end {
+	opacity: 1;
+	transform: translate(-50%, -50%) scale(1);
+	transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#progressbar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 0.2em;
+	width: 0;
+	background-color: #2979FF;
+	display: none;
+	transition: width 0.5s ease;
+	z-index: 1000;
 }
 
 #post_author input[type="text"] {
@@ -154,25 +181,26 @@ section.active {
 	width: 100%;
 }
 
-#post_author #input_container {
-	margin: 1em 0;
+.input_container {
+	margin-top: 1em;
 	text-align: right;
 }
 
-#posts_list {
+#posts_list, #files_list {
 	list-style: none;
 	padding: 1em;
 	background: white;
 	color: black;
+	border-radius: 0.2em;
 }
 
-#posts_list > li {
+#posts_list > li, #files_list > li {
 	margin-bottom: 0.5em;
 	padding-bottom: 0.5em;
 	border-bottom: 1px solid rgba(0,0,0,0.3);
 }
 
-#posts_list > li:last-of-type {
+#posts_list > li:last-of-type, #files_list > li:last-of-type {
 	margin-bottom: 0;
 	padding-bottom: 0;
 	border-bottom: none;
@@ -185,25 +213,6 @@ section.active {
 #posts_list > li > div > a {
 	margin: 0 0.5em;
 	float: right;
-}
-
-#files_list {
-	list-style: none;
-	padding: 1em;
-	background: white;
-	color: black;
-}
-
-#files_list > li {
-	margin-bottom: 0.5em;
-	padding-bottom: 0.5em;
-	border-bottom: 1px solid rgba(0,0,0,0.3);
-}
-
-#files_list > li:last-of-type {
-	margin-bottom: 0;
-	padding-bottom: 0;
-	border-bottom: none;
 }
 
 #files_list > li > h1 {
@@ -219,4 +228,5 @@ section.active {
 	text-align: center;
 	background: white;
 	padding: 1em;
+	border-radius: 0.2em;
 }

@@ -1,7 +1,7 @@
-<!DOCTYPE.html>
+<!DOCTYPE html>
 <html>
-	<meta charset="utf-8">
 <head>
+	<meta charset="utf-8">
 	<title>Admin page</title>
 
 	<link rel="stylesheet" type="text/css" href="admin.css">
@@ -9,6 +9,7 @@
 </head>
 
 <body>
+	<div id="progressbar"></div>
 	<div id="backdrop"></div>
 	<div id="dialog"></div>
 	
@@ -30,9 +31,9 @@
 			<textarea id="blurb" placeholder="Blurb"></textarea>
 			<textarea id="content" placeholder="Main content"></textarea>
 			<input id="post_categories" type="text" placeholder="Post categories, separated by spaces">
-			<div id="input_container">
+			<div class="input_container">
 				<input id="post_preview" type="submit" value="PREVIEW">
-				<input id="post_submit" type="submit" value="SUBMIT">
+				<input id="post_submit" class="accent" type="submit" value="SUBMIT">
 			</div>
 		</section>
 
@@ -41,7 +42,7 @@
 
 		<section id="file_author">
 			<input type="file" multiple>
-			<input type="submit" value="UPLOAD">
+			<input type="submit" class="accent" value="UPLOAD">
 		</section>
 	</main>
 </body>

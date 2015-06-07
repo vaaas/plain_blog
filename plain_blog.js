@@ -21,7 +21,7 @@ var conf = {
 		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
 	},
 	dirs: {
-		root: "./",
+		root: "/usr/local/share/blog",
 	},
 };
 
@@ -220,10 +220,7 @@ function admin_get_posts_element (postid, callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify ({
-					type: "posts element",
-					data: result.rows[0]
-				})
+				data: JSON.stringify (result.rows[0]);
 			});
 		}
 	});
@@ -231,7 +228,11 @@ function admin_get_posts_element (postid, callback) {
 
 function admin_put_posts_element (postid, data, callback) {
 	var n = parseInt (postid, 10);
-	var obj = JSON.parse(obj);
+	try {
+		var obj = JSON.parse(obj);
+	} catch (err) {
+		return callback (code_response (400));
+	}
 	if (!n || n < 1 || !obj) {
 		return callback (code_response (400));
 	}
@@ -245,10 +246,7 @@ function admin_put_posts_element (postid, data, callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify ({
-					type: "message",
-					data: result
-				})
+				data: JSON.stringify (result);
 			});
 		}
 	});
@@ -269,10 +267,7 @@ function admin_delete_posts_element (postid, callback) {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify ({
-					type: "message",
-					data: result
-				})
+				data: JSON.stringify ({result})
 			});
 		}
 	});
@@ -280,7 +275,7 @@ function admin_delete_posts_element (postid, callback) {
 
 function admin_get_posts_collection (callback) {
 	pg_query ({
-		text: "SELECT * FROM posts ORDER BY id;",
+		text: "SELECT id, published, title FROM posts ORDER BY id;",
 		values: []
 	}, function (err, result) {
 		if (err) {
@@ -299,9 +294,13 @@ function admin_get_posts_collection (callback) {
 }
 
 function admin_post_posts_collection (data, callback) {
-	var obj = JSON.parse(data);
+	try {
+		var obj = JSON.parse(data);
+	} catch (err) {
+		return callback (code_response (400));
+	}
 	if (!obj) {
-		return callback (code_response(400));
+		return callback (code_response (400));
 	}
 	pg_query ({
 		text: "INSERT INTO posts (title, published, categories, blurb, contents) VALUES ($1, CURRENT_DATE, $2, $3, $4);",
@@ -323,7 +322,7 @@ function admin_post_posts_collection (data, callback) {
 }
 
 function admin_get_files_collection (callback) {
-	fs.readdir (conf.dirs.static, function (err, files) {
+	fs.readdir (conf.dirs.root + "/static", function (err, files) {
 		if (err) {
 			console.error ("Error reading directory", err);
 			return callback (code_response(500));
@@ -341,13 +340,14 @@ function admin_get_files_collection (callback) {
 }
 
 function admin_post_files_collection (data, callback) {
-	var obj = JSON.parse(data);
-	if (!obj) {
-		return callback (code_response(400));
+	try {
+		var obj = JSON.parse(data);
+	} catch (err) {
+		return callback (code_response (400));
 	}
 	for (var i = 0, len = obj.length; i < len; i++) {
 		try {
-			var fd = fs.openSync (conf.dirs.static + "/" + obj[i].name, "w", 288);
+			var fd = fs.openSync (conf.dirs.root + "/static/" + obj[i].name, "w", 288);
 			var buf = new Buffer (obj[i].data, "base64");
 			fs.writeSync (fd, buf, 0, buf.length, null);
 			fs.closeSync (fd);
@@ -360,13 +360,29 @@ function admin_post_files_collection (data, callback) {
 }
 
 function admin_delete_files_element (file, callback) {
-	fs.unlink (conf.dirs.static + "/" + file, function (err) {
+	fs.unlink (conf.dirs.root + "/static/" + file, function (err) {
 		if (err) {
 			console.error ("Error deleting file", err);
 			return callback (code_response (400));
 		} else {
 			return callback (code_response (200));
 		}
+	});
+}
+
+function admin_preview (data, callback) {
+	try {
+		var obj = JSON.parse (data);
+	} catch (err) {
+		return callback (code_response (400));
+	}
+	return callback ({
+		code: 200,
+		message: {"Content-type": "text/html"},
+		data: template ({
+			type: "element",
+			post: obj
+		})
 	});
 }
 
@@ -439,10 +455,20 @@ function admin_request_listener (req, res) {
 		}
 		break;
 	case "preview":
-		// todo
+		if (req.method === "POST") {
+			extract_request_data (req, function (data) {
+				admin_preview (data, DRY);
+			});
+		} else {
+			serve_response (code_response (405), res);
+		}
 		break;
 	case "auth":
-		serve_response (code_response (200), res);
+		if (req.method === "GET") {
+			serve_response (code_response (200), res);
+		} else {
+			serve_response (code_response (405), res);
+		}
 		break;
 	default:
 		serve_response (code_response (400), res);

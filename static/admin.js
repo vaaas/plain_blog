@@ -12,11 +12,7 @@ function clear_children (element) {
 }
 
 function XHR_listener () {
-	console.log (this.status);
-	console.log (this.responseText);
-
-	var obj = JSON.parse (this.responseText);
-
+	var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
 	switch (obj.type) {
 	case "posts collection":
 		render_posts_list (obj.data);
@@ -34,9 +30,14 @@ function XHR_listener () {
 
 function XHR (method, url, data, callback) {
 	var req = new XMLHttpRequest();
-	req.onload = callback || XHR_listener;
 	req.open (method, url, true);
 	req.setRequestHeader ("x-password", v.password);
+	
+	req.onload = callback || XHR_listener;
+	req.onloadstart = show_progress;
+	req.onloadend = hide_progress;
+	req.onprogress = update_progress;
+	
 	if (data)
 		req.send (data);
 	else
@@ -150,6 +151,10 @@ function post_entry () {
 }
 
 function file_entry () {
+	if (v.elems["file_input"].files.length === 0) {
+		return show_dialog (info_dialog ("Please select at least one file."));
+	}
+
 	var reader = new FileReader();
 	var arr = new Array();
 	var i = 0;
@@ -166,7 +171,6 @@ function file_entry () {
 		if (i < len) {
 			read_file();
 		} else {
-			console.log(arr);
 			XHR ("POST", "/admin/files", JSON.stringify(arr));
 		}
 	};
@@ -222,19 +226,52 @@ function activate_file_author () {
 }
 
 function show_dialog (init_function) {
-	clear_children(v.elems["dialog"]);
+	if (v.dialog_timeout !== null) {
+		clearTimeout (v.dialog_timeout);
+		v.dialog_timeout = null;
+	}
+	if (v.elems["dialog"].hasChildNodes()) {
+		clear_children (v.elems["dialog"]);
+	}
 	v.elems["dialog-backdrop"].style.display = "block";
 	v.elems["dialog"].style.display = "block";
 	init_function (v.elems["dialog"]);
+	v.elems["dialog-backdrop"].className = "end";
+	v.elems["dialog"].className = "end";
 }
 
 function hide_dialog () {
-	v.elems["dialog-backdrop"].style.display = "none";
-	v.elems["dialog"].style.display = "none";
-	clear_children(v.elems["dialog"]);
+	v.elems["dialog-backdrop"].className = "";
+	v.elems["dialog"].className = "";
+	v.dialog_timeout = setTimeout (function () {
+		v.elems["dialog-backdrop"].style.display = "none";
+		v.elems["dialog"].style.display = "none";
+		clear_children(v.elems["dialog"]);
+		v.dialog_timeout = null;
+	}, 200);
 }
 
 function password_dialog (dialog) {
+	function send_password () {
+		v.password = password.value;
+		XHR ("GET", "/admin/auth", null, response_listener);
+		hide_dialog ();
+		return false;
+	}
+	
+	function response_listener () {
+		switch (this.status) {
+		case 200:
+			show_dialog (info_dialog ("Authentication successful."));
+			break;
+		default:
+			show_dialog (info_dialog ("Invalid password.", function () {
+				show_dialog (password_dialog);
+			}));
+			break;
+		}
+	}
+	
 	var form = document.createElement ("form");
 	
 	var password = document.createElement ("input");
@@ -254,43 +291,61 @@ function password_dialog (dialog) {
 	dialog.appendChild (form);
 	
 	password.focus();
-	
-	function send_password () {
-		var req = new XMLHttpRequest();
-		req.onload = response_listener;
-		req.open ("GET", "/admin/auth", true);
-		req.setRequestHeader ("x-password", password.value);
-		req.send();
-		return false;
-	}
-	
-	function response_listener () {
-		switch (this.status) {
-		case 200:
-			v.password = password.value;
-			show_dialog (info_dialog ("Authentication successful."));
-			break;
-		default:
-			//todo
-			break;
-		}
-	}
 }
 
-function info_dialog (text) {
+function info_dialog (text, callback) {
 	return function (dialog) {
-		var info = document.createElement ("p");
+		var info = document.createElement ("div");
 		info.innerText = text;
+		
+		var container = document.createElement ("div");
+		container.className = "input_container";
 		
 		var ok = document.createElement ("input");
 		ok.type = "submit";
 		ok.value = "OK";
+		ok.className = "accent";
+		ok.onclick = function () {
+			hide_dialog();
+			if (callback) { callback (this); }
+		};
 		
-		ok.onclick = hide_dialog;
-		
+		container.appendChild (ok);
 		dialog.appendChild (info);
-		dialog.appendChild (ok);
+		dialog.appendChild (container);
+		
+		ok.focus();
 	};
+}
+
+function show_progress () {
+	v.progress = 0;
+	v.elems["progressbar"].style.display = "block";
+	v.elems["progressbar"].style.width = "0";
+}
+
+function hide_progress () {
+	v.elems["progressbar"].style.width = "100%";
+	setTimeout (function () {
+		v.progress = 0;
+		v.elems["progressbar"].style.display = "none";
+		v.elems["progressbar"].style.width = "0";
+	}, 200);
+}
+
+function update_progress (event) {
+	switch (v.progress) {
+	case 0:
+		v.progress = 25;
+		break;
+	case 25:
+		v.progress = 50;
+		break;
+	default:
+		v.progress = (v.progress + 100) / 2
+		break;
+	}
+	v.elems["progressbar"].style.width = String (v.progress) + "%";
 }
 
 function main () {
@@ -318,6 +373,7 @@ function main () {
 		
 		"dialog-backdrop": document.querySelector ("#backdrop"),
 		dialog: document.querySelector ("#dialog"),
+		progressbar: document.querySelector ("#progressbar"),
 	};
 
 	v.elems["post_author_link"].onclick = activate_post_author;

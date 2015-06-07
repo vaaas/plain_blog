@@ -1,4 +1,4 @@
-all: dirs nginx static
+all: dirs nginx static blog
 
 dirs:
 	sudo mkdir -p /usr/local/share/blog/ /usr/local/share/blog/templates /usr/local/share/blog/static
@@ -10,4 +10,7 @@ nginx:
 static:
 	sudo install -m 440 -o node -g node static/* /usr/local/share/blog/static/
 
-.PHONY: static nginx dirs all
+blog:
+	sudo install -m 640 -o node -g node template.html /usr/local/share/blog/
+
+.PHONY: blog static nginx dirs all

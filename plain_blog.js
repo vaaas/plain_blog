@@ -90,7 +90,7 @@ function code_response (num) {
 	return {
 		code: num,
 		message: {"Content-type": "text/plain"},
-		data: String (num)
+		data: "" + num
 	};
 }
 

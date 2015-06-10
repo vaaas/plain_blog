@@ -2,9 +2,15 @@
 /* jshint -W010 */
 /* jshint -W069 */
 
-var v = new Object();
-v.editing = null;
+// object holding global variables
+var v = {
+	editing: null,
+	dialog_timeout: null,
+	progress: 0,
+	elems: new Object()
+}
 
+// ----------------------------- HELPER FUNCTIONS ------------------------------
 function clear_children (element) {
 	while (element.hasChildNodes()) {
 		element.removeChild(element.lastChild);
@@ -27,12 +33,12 @@ function XHR (method, url, data, callback) {
 		req.send();
 }
 
+// ----------------------------- RENDER FUNCTIONS ------------------------------
 function render_post_edit (data) {
 	v.elems["post_title"].value = data.title;
 	v.elems["post_blurb"].value = data.blurb;
 	v.elems["post_content"].value = data.contents;
 	v.elems["post_categories"].value = data.categories.join(" ");
-	v.editing = data.id;
 }
 
 function render_files_list (rows) {
@@ -55,7 +61,7 @@ function render_file_row (parent, data) {
 	var delete_button = document.createElement("a");
 	delete_button.href ="#";
 	delete_button.innerText = "DELETE";
-	delete_button.onclick = gen_delete_file_function (data, parent);
+	delete_button.onclick = delete_file_clicked (data, parent);
 
 	parent.appendChild (delete_button);
 }
@@ -86,137 +92,21 @@ function render_post_row (parent, data) {
 	var edit_button = document.createElement("a");
 	edit_button.href = "#";
 	edit_button.innerText = "EDIT";
-	edit_button.onclick = gen_edit_post_function (data.id);
+	edit_button.onclick = edit_post_clicked (data.id);
 	container.appendChild(edit_button);
 
 	var delete_button = document.createElement("a");
 	delete_button.href = "#";
 	delete_button.innerText = "DELETE";
-	delete_button.onclick = gen_delete_post_function (data.id, parent);
+	delete_button.onclick = delete_post_clicked (data.id, parent);
 	container.appendChild (delete_button);
 
 	parent.appendChild (container);
 }
 
-function gen_edit_post_function (id) {
-	return function () {
-		activate_post_author ();
-		XHR ("GET", "/admin/posts/" + id, null, function () {
-			if (this.status === 200) {
-				var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
-				render_post_edit (obj);
-			} else {
-				//todo
-			}
-		});
-	};
-}
+// ------------------------------- NAV FUNCTIONS -------------------------------
 
-function gen_delete_post_function (id, elem) {
-	return function () {
-		XHR ("DELETE", "/admin/posts/" + id, null, function () {
-			if (this.status === 200) {
-				v.elems["posts_list"].removeChild (elem);
-			} else {
-				//todo
-			}
-		});
-	};
-}
-
-function gen_delete_file_function (name, elem) {
-	return function () {
-		XHR ("DELETE", "/admin/files/" + name, null, function () {
-			if (this.status === 200) {
-				v.elems["files_list"].removeChild (elem);
-			} else {
-				//todo
-			}
-		});
-	};
-}
-
-function preview_entry () {
-	var data = JSON.stringify ({
-		title: v.elems["post_title"].value,
-		blurb: v.elems["post_blurb"].value,
-		contents: v.elems["post_content"].value,
-		categories: v.elems["post_categories"].value.split(" "),
-		published: Date.now()
-	});
-	
-	XHR ("POST", "/admin/preview", data, function () {
-		if (this.status === 200) {
-			var popup = window.open("about:blank", "(PREVIEW) " + data.title);
-			popup.document.write (this.responseText);
-		} else {
-			// todo
-		}
-	});
-}
-
-function post_entry () {
-	function DRY () {
-		if (this.status === 200) {
-			//todo
-			deactivate_nav ();
-		} else {
-			//todo
-		}
-	}
-	var data = JSON.stringify ({
-		title: v.elems["post_title"].value,
-		blurb: v.elems["post_blurb"].value,
-		contents: v.elems["post_content"].value,
-		categories: v.elems["post_categories"].value.split(" ")
-	});
-	if (v.editing === null) {
-		XHR ("POST", "/admin/posts", data, DRY);
-	} else {
-		XHR ("PUT", "/admin/posts" + v.editing, data, DRY);
-	}
-}
-
-function file_entry () {
-	if (v.elems["file_input"].files.length === 0) {
-		return show_dialog (info_dialog ("Please select at least one file."));
-	}
-
-	var reader = new FileReader();
-	var arr = new Array();
-	var i = 0;
-	var len = v.elems["file_input"].files.length;
-	var file = v.elems["file_input"].files.item(i);
-
-	reader.onloadend = function () {
-		arr.push ({
-			name: file.name,
-			data: reader.result.split(",")[1]
-		});
-		i += 1;
-		file = v.elems["file_input"].files.item(i);
-		if (i < len) {
-			read_file();
-		} else {
-			XHR ("POST", "/admin/files", JSON.stringify(arr), function () {
-				if (this.status === 200) {
-					deactivate_nav();
-					//todo
-				} else {
-					//todo
-				}
-			});
-		}
-	};
-
-	function read_file () {
-		reader.readAsDataURL(file);
-	}
-
-	read_file();
-}
-
-function deactivate_nav () {
+function hide_nav () {
 	v.elems["post_author_link"].className = "";
 	v.elems["files_list_link"].className = "";
 	v.elems["file_author_link"].className = "";
@@ -228,49 +118,36 @@ function deactivate_nav () {
 	v.elems["file_author"].className = "";
 }
 
-function activate_posts_list () {
-	deactivate_nav();
+function show_posts_list () {
 	v.elems["posts_list"].className = "active";
 	v.elems["posts_list_link"].className = "active";
-	XHR ("GET", "/admin/posts", null, function () {
-		if (this.status === 200) {
-			var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
-			render_posts_list (obj);
-		} else {
-			//todo
-		}
-	});
 }
 
-function activate_post_author () {
-	deactivate_nav();
-	v.elems["post_title"].value = "";
-	v.elems["post_blurb"].value = "";
-	v.elems["post_content"].value = "";
-	v.elems["post_categories"].value = "";
+function show_post_author () {
 	v.elems["post_author"].className = "active";
 	v.elems["post_author_link"].className = "active";
-	v.editing = null;
 }
 
-function activate_files_list () {
-	deactivate_nav();
+function show_files_list () {
 	v.elems["files_list"].className = "active";
 	v.elems["files_list_link"].className = "active";
-	XHR ("GET", "/admin/files", null, function () {
-		if (this.status === 200) {
-			var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
-			render_files_list (obj);
-		} else {
-			//todo
-		}
-	});
 }
 
-function activate_file_author () {
-	deactivate_nav();
+function show_file_author () {
 	v.elems["file_author"].className = "active";
 	v.elems["file_author_link"].className = "active";
+}
+
+// ----------------------------- DIALOG FUNCTIONS ------------------------------
+function hide_dialog () {
+	v.elems["dialog_backdrop"].className = "";
+	v.elems["dialog"].className = "";
+	v.dialog_timeout = setTimeout (function () {
+		v.elems["dialog_backdrop"].style.display = "none";
+		v.elems["dialog"].style.display = "none";
+		clear_children(v.elems["dialog"]);
+		v.dialog_timeout = null;
+	}, 200);
 }
 
 function show_dialog (init_function) {
@@ -286,17 +163,6 @@ function show_dialog (init_function) {
 	init_function (v.elems["dialog"]);
 	v.elems["dialog_backdrop"].className = "end";
 	v.elems["dialog"].className = "end";
-}
-
-function hide_dialog () {
-	v.elems["dialog_backdrop"].className = "";
-	v.elems["dialog"].className = "";
-	v.dialog_timeout = setTimeout (function () {
-		v.elems["dialog_backdrop"].style.display = "none";
-		v.elems["dialog"].style.display = "none";
-		clear_children(v.elems["dialog"]);
-		v.dialog_timeout = null;
-	}, 200);
 }
 
 function password_dialog (dialog) {
@@ -366,6 +232,7 @@ function info_dialog (text, callback) {
 	};
 }
 
+// ----------------------------- PROGRESS FUNCTIONS ----------------------------
 function show_progress () {
 	v.progress = 0;
 	v.elems["progressbar"].style.display = "block";
@@ -393,7 +260,168 @@ function update_progress () {
 		v.progress = (v.progress + 100) / 2;
 		break;
 	}
-	v.elems["progressbar"].style.width = String (v.progress) + "%";
+	v.elems["progressbar"].style.width = v.progress + "%";
+}
+
+//-------------------------------- CLICK EVENTS --------------------------------
+function post_author_link_clicked () {
+	hide_nav();
+	v.elems["post_title"].value = "";
+	v.elems["post_blurb"].value = "";
+	v.elems["post_content"].value = "";
+	v.elems["post_categories"].value = "";
+	v.editing = null;
+	show_post_author();
+}
+
+function file_author_link_clicked () {
+	hide_nav();
+	show_file_author();
+}
+
+function files_list_link_clicked () {
+	hide_nav();
+	XHR ("GET", "/admin/files", null, function () {
+		if (this.status === 200) {
+			var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
+			render_files_list (obj);
+			show_files_list();
+		} else {
+			//todo
+		}
+	});
+}
+
+function post_list_link_clicked () {
+	hide_nav();
+	XHR ("GET", "/admin/posts", null, function () {
+		if (this.status === 200) {
+			var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
+			render_posts_list (obj);
+			show_posts_list();
+		} else {
+			//todo
+		}
+	});
+}
+
+function post_preview_clicked () {
+	var data = JSON.stringify ({
+		title: v.elems["post_title"].value,
+		blurb: v.elems["post_blurb"].value,
+		contents: v.elems["post_content"].value,
+		categories: v.elems["post_categories"].value.split(" "),
+		published: Date.now()
+	});
+	
+	XHR ("POST", "/admin/preview", data, function () {
+		if (this.status === 200) {
+			var popup = window.open("about:blank", "(PREVIEW) " + data.title);
+			popup.document.write (this.responseText);
+		} else {
+			// todo
+		}
+	});
+}
+
+function post_submit_clicked () {
+	function DRY () {
+		if (this.status === 200) {
+			//todo
+			hide_nav();
+		} else {
+			//todo
+		}
+	}
+	var data = JSON.stringify ({
+		title: v.elems["post_title"].value,
+		blurb: v.elems["post_blurb"].value,
+		contents: v.elems["post_content"].value,
+		categories: v.elems["post_categories"].value.split(" ")
+	});
+	if (v.editing === null) {
+		XHR ("POST", "/admin/posts", data, DRY);
+	} else {
+		XHR ("PUT", "/admin/posts" + v.editing, data, DRY);
+	}
+}
+
+function file_submit_clicked () {
+	if (v.elems["file_input"].files.length === 0) {
+		return show_dialog (info_dialog ("Please select at least one file."));
+	}
+
+	var reader = new FileReader();
+	var arr = new Array();
+	var i = 0;
+	var len = v.elems["file_input"].files.length;
+	var file = v.elems["file_input"].files.item(i);
+
+	reader.onloadend = function () {
+		arr.push ({
+			name: file.name,
+			data: reader.result.split(",")[1]
+		});
+		i += 1;
+		file = v.elems["file_input"].files.item(i);
+		if (i < len) {
+			read_file();
+		} else {
+			XHR ("POST", "/admin/files", JSON.stringify(arr), function () {
+				if (this.status === 200) {
+					hide_nav();
+					//todo
+				} else {
+					//todo
+				}
+			});
+		}
+	};
+
+	function read_file () {
+		reader.readAsDataURL(file);
+	}
+
+	read_file();
+}
+
+function edit_post_clicked (id) {
+	return function () {
+		XHR ("GET", "/admin/posts/" + id, null, function () {
+			if (this.status === 200) {
+				var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
+				render_post_edit (obj);
+				v.editing = data.id;
+				show_post_author();
+			} else {
+				//todo
+			}
+		});
+	};
+}
+
+function delete_post_clicked (id, elem) {
+	return function () {
+		XHR ("DELETE", "/admin/posts/" + id, null, function () {
+			if (this.status === 200) {
+				v.elems["posts_list"].removeChild (elem);
+			} else {
+				//todo
+			}
+		});
+	};
+}
+
+function delete_file_clicked (name, elem) {
+	return function () {
+		XHR ("DELETE", "/admin/files/" + name, null, function () {
+			if (this.status === 200) {
+				v.elems["files_list"].removeChild (elem);
+			} else {
+				//todo
+			}
+		});
+	};
 }
 
 function main () {
@@ -424,14 +452,14 @@ function main () {
 		progressbar: document.querySelector ("#progressbar"),
 	};
 
-	v.elems["post_author_link"].onclick = activate_post_author;
-	v.elems["file_author_link"].onclick = activate_file_author;
-	v.elems["files_list_link"].onclick = activate_files_list;
-	v.elems["posts_list_link"].onclick = activate_posts_list;
+	v.elems["post_author_link"].onclick = post_author_link_clicked;
+	v.elems["file_author_link"].onclick = file_author_link_clicked;
+	v.elems["files_list_link"].onclick = files_list_link_clicked;
+	v.elems["posts_list_link"].onclick = posts_list_link_clicked;
 
-	v.elems["post_preview"].onclick = preview_entry;
-	v.elems["post_submit"].onclick = post_entry;
-	v.elems["file_submit"].onclick = file_entry;
+	v.elems["post_preview"].onclick = post_preview_clicked;
+	v.elems["post_submit"].onclick = post_submit_clicked;
+	v.elems["file_submit"].onclick = file_submit_clicked;
 
 	show_dialog (password_dialog);
 }

@@ -1,67 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <meta name="description" content="A blog that is very plain">
-    <link rel="stylesheet" href="/style.css">
-    <link rel="alternate" type="application/rss+xml" href="/feeds/rss.xml">
-    <link rel="alternate" type="application/atom+xml" href="/feeds/atom.xml">
-    <link rel="icon" type="image/png" href="/favicon.png">
-    <title>Plain Blog</title>
+	<meta charset="utf-8">
+	<meta name="description" content="A blog that is very plain">
+	<link rel="stylesheet" href="/style.css">
+	<link rel="alternate" type="application/rss+xml" href="/feeds/rss.xml">
+	<link rel="alternate" type="application/atom+xml" href="/feeds/atom.xml">
+	<link rel="icon" type="image/png" href="/favicon.png">
+	<title>Plain Blog</title>
 </head>
 <body>
 <header>
-    <img src="/portrait.jpg" width="124" height="124">
-    <h1><a href="/">Plain Blog</a></h1>
-    <h2>A blog that is very plain</h2>
+	<img src="/portrait.jpg" width="124" height="124">
+	<h1><a href="/">Plain Blog</a></h1>
+	<h2>A blog that is very plain</h2>
 </header>
 
 {{? it.type === "collection"}}
-    <main class="collection">
-        {{~it.posts:post:postid}}
-        {{
-            var d = new Date (post.published);
-            d = String(d.getDate()) + "-" + String(d.getMonth()) + "-" + String(d.getFullYear());
-        }}
-        <article class="card">
-            <h1><a href="/posts/{{=post.id}}">{{=post.title}}</a></h1>
-            <div class="published">Posted on {{=d}}</div>
-            {{? post.categories}}
-                <div class="categories">
-                    Under
-                    {{~post.categories:category:catid}}
-                        <a href="/posts?category={{=category}}">{{=category}}</a>
-                    {{~}}
-                </div>
-            {{?}}
-            {{=post.blurb}}
-            <a class="card readmore" href="/posts/{{=post.id}}">Read more</a>
-        </article>
-        {{~}}
-    </main>
-    <nav>
-        <a class="card" id="prev" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}before={{=it.posts[0].id}}">←</a>
-        <a class="card" id="next" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}after={{=it.posts[it.posts.length-1].id}}">→</a>
-    </nav>
+	<main class="collection">
+		{{~it.posts:post:postid}}
+		{{
+			var d = new Date (post.published);
+			d = d.getDate() + "-" + d.getMonth() + "-" + d.getFullYear();
+		}}
+		<article class="card">
+			<h1><a href="/posts/{{=post.id}}">{{=post.title}}</a></h1>
+			<div class="published">Posted on {{=d}}</div>
+			{{? post.categories}}
+				<div class="categories">
+					Under
+					{{~post.categories:category:catid}}
+						<a href="/posts?category={{=category}}">{{=category}}</a>
+					{{~}}
+				</div>
+			{{?}}
+			{{=post.blurb}}
+			<a class="card readmore" href="/posts/{{=post.id}}">Read more</a>
+		</article>
+		{{~}}
+	</main>
+	<nav>
+		<a class="card" id="prev" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}before={{=it.posts[0].id}}">←</a>
+		<a class="card" id="next" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}after={{=it.posts[it.posts.length-1].id}}">→</a>
+	</nav>
 
 {{?? it.type === "element"}}
-    {{
-        var d = new Date (it.post.published);
-        d = String(d.getDate()) + "-" + String(d.getMonth()) + "-" + String(d.getFullYear());
-    }}
-    <main class="element">
-        <h1><a href="/posts/{{=it.post.id}}">{{=it.post.title}}</a></h1>
-        <div class="published">Posted on {{=d}}</div>
-        {{? it.post.categories}}
-            <div class="categories">
-                Under
-                {{~it.post.categories:category:catid}}
-                    <a href="/posts?category={{=category}}">{{=category}}</a>
-                {{~}}
-            </div>
-        {{?}}
-        {{=it.post.contents}}
-    </main>
+	{{
+		var d = new Date (it.post.published);
+		d = d.getDate() + "-" + d.getMonth() + "-" + d.getFullYear();
+	}}
+	<main class="element">
+		<h1><a href="/posts/{{=it.post.id}}">{{=it.post.title}}</a></h1>
+		<div class="published">Posted on {{=d}}</div>
+		{{? it.post.categories}}
+			<div class="categories">
+				Under
+				{{~it.post.categories:category:catid}}
+					<a href="/posts?category={{=category}}">{{=category}}</a>
+				{{~}}
+			</div>
+		{{?}}
+		{{=it.post.contents}}
+	</main>
 {{?}}
 
 </body>

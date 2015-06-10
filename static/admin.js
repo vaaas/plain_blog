@@ -311,7 +311,7 @@ function post_preview_clicked () {
 		blurb: v.elems["post_blurb"].value,
 		contents: v.elems["post_content"].value,
 		categories: v.elems["post_categories"].value.split(" "),
-		published: Date.now()
+		published: new Date()
 	});
 	
 	XHR ("POST", "/admin/preview", data, function () {
@@ -337,7 +337,8 @@ function post_submit_clicked () {
 		title: v.elems["post_title"].value,
 		blurb: v.elems["post_blurb"].value,
 		contents: v.elems["post_content"].value,
-		categories: v.elems["post_categories"].value.split(" ")
+		categories: v.elems["post_categories"].value.split(" "),
+		published: new Date()
 	});
 	if (v.editing === null) {
 		XHR ("POST", "/admin/posts", data, DRY);

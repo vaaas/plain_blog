@@ -83,15 +83,39 @@ function is_authorised (password) {
 	}
 }
 
+function isInt (n) {
+	return n % 1 === 0;
+}
+
+function is_valid_post (obj) {
+	if (
+		typeof obj === "object" ||
+		typeof obj.id === "number" ||
+		typeof obj.title === "string" ||
+		obj.title.length > 0 ||
+		! new Date (obj.published).getTime().isNaN() ||
+		typeof obj.contents === "string" ||
+		obj.contents.length > 0
+	) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
 // create a very simple response configuration object
 // num: number of the response code
 // returns a response configuration object
-function code_response (num) {
+function code_response (num, msg) {
 	return {
 		code: num,
 		message: {"Content-type": "text/plain"},
-		data: "" + num
+		data: msg ? msg : "" + num
 	};
+}
+
+function sane_error (err) {
+	return "Something went wrong:\n\n["+err.name+"] " + err.message;
 }
 
 // serve a response
@@ -107,7 +131,14 @@ function serve_response (conf, res) {
 // query: the user query
 // returns a node-pg query configuration object
 function sql_generator (query) {
-	if (!query) {
+	// check if query is empty
+	if (
+		typeof query !== "object" || (
+			(query.category === undefined || query.category.length === 0) &&
+			(query.after === undefined || query.after.length === 0) &&
+			(query.prev === undefined || query.prev.length === 0)
+		)
+	) {
 		return {
 			text: "SELECT * FROM posts ORDER BY id LIMIT 10;",
 			values: []
@@ -136,14 +167,14 @@ function sql_generator (query) {
 	// or posts before a specific id
 	if (query.after) {
 		id = parseInt (query.after, 10);
-		if (id && id >= 1) {
+		if (id && isInt (id) && id >= 1) {
 			arr.push (verb + " id > $" + counter);
 			vals.push (id);
 			counter += 1;
 		}
 	} else if (query.prev) {
-		id = parseInt (query.after, 10);
-		if (id && id >= 1) {
+		id = parseInt (query.prev, 10);
+		if (id && isInt (id) && id >= 1) {
 			arr.push (verb + " id > $" + counter);
 			vals.push (id);
 			counter += 1;
@@ -171,12 +202,19 @@ function sql_generator (query) {
 // query: the user query object
 // callback (res_conf): the function to call when the response is ready
 // returns nothing
+// on success, serves HTML content (200)
+// if query is invalid, serves plain text (400)
+// if nothing is found, serves empty (404)
+// if something goes wrong with the query, serves plain text (500)
 function get_posts_collection (query, callback) {
 	var qc = sql_generator (query);
+	if (!qc) {
+		return callback (code_response (400, "Invalid query"));
+	}
 	pg_query (qc, function (err, result) {
 		if (err) {
 			// something went wrong
-			return callback (code_response (500));
+			return callback (code_response (500, sane_error(err)));
 		} else if (result.rowCount === 0) {
 			// no results
 			return callback (code_response (404));
@@ -198,12 +236,14 @@ function get_posts_collection (query, callback) {
 // id: the post id
 // callback (res_conf): the function to call when the response is ready
 // returns nothing
+// on success, serves HTML content (200)
+// if query is invalid, serves plain text (400)
+// if something goes wrong with the query, serves plain text (500)
 function get_posts_element (id, callback) {
-	// urls consist of strings, but we need integers for the query
 	id = parseInt (id, 10);
-	if (!id || id < 1) {
+	if (!id || !isInt (id) || id < 1) {
 		// the user has intentionally requested an invalid post
-		return callback (code_response (400));
+		return callback (code_response (400, "Please stop that"));
 	}
 	pg_query ({
 		text: "SELECT * FROM posts WHERE id = $1;",
@@ -211,7 +251,7 @@ function get_posts_element (id, callback) {
 	}, function (err, result) {
 		if (err) {
 			// something went wrong
-			return callback (code_response (500));
+			return callback (code_response (500, sane_error(err)));
 		} else if (result.rowCount === 0) {
 			// post not found
 			return callback (code_response (404));
@@ -233,6 +273,9 @@ function get_posts_element (id, callback) {
 // req: node.js http request object
 // res: node.js http response object
 // returns nothing
+// serves whatever the called functions serve
+// if a function is not found, serves empty (404)
+// if a method is not allowed, serves plain text (405)
 function request_listener (req, res) {
 	// a simple function to help with not repeating oneself
 	function DRY (conf) { serve_response (conf, res); }
@@ -247,14 +290,14 @@ function request_listener (req, res) {
 		if (is_authorised (req.headers["x-password"])) {
 			admin_request_listener (req, res);
 		} else {
-			serve_response (code_response (401), res);
+			serve_response (code_response (401, "Not authorised"), res);
 		}
 		break;
 	case "posts":
 		// public api for reading posts
 		if (req.method !== "GET") {
 			// guests can do nothing but read posts
-			serve_response (code_response (405));
+			serve_response (code_response (405, "Only GET methods allowed"));
 		} else if (pathparts [2]) {
 			// GET /posts/postid
 			// render a single post
@@ -266,8 +309,7 @@ function request_listener (req, res) {
 		}
 		break;
 	default:
-		// not implemented yet
-		serve_response (code_response (400), res);
+		serve_response (code_response (404), res);
 		break;
 	}
 }
@@ -278,7 +320,7 @@ function request_listener (req, res) {
 // returns nothing
 function admin_get_posts_element (postid, callback) {
 	var n = parseInt (postid, 10);
-	if (!n || n < 1) {
+	if (!n || !isInt (n) || n < 1) {
 		return callback (code_response (400));
 	}
 	pg_query ({
@@ -305,18 +347,22 @@ function admin_get_posts_element (postid, callback) {
 // callback: function to call when replacement completes
 // returns nothing
 function admin_put_posts_element (postid, data, callback) {
+	// input verification
 	var n = parseInt (postid, 10);
-	var obj = null;
+	if (!n || !isInt (n) || n < 1) {
+		return callback (code_response (400, "Invalid post number"));
+	}
+	var obj;
 	try {
-		obj = JSON.parse(data);
+		obj = JSON.parse (data);
 	} catch (err) {
 		return callback (code_response (400));
 	}
-	if (!n || n < 1 || !obj) {
-		return callback (code_response (400));
+	if (! is_valid_post (obj)) {
+		return callback (code_response (400, "Invalid data"));
 	}
 	pg_query ({
-		text: "UPDATE posts SET title=$1, categories=$2, contents = $3, WHERE id = $4;",
+		text: "UPDATE posts SET title=$1, categories=$2, contents=$3, WHERE id=$4;",
 		values: [obj.title, obj.categories, obj.contents, n]
 	}, function (err, result) {
 		if (err) {
@@ -337,8 +383,8 @@ function admin_put_posts_element (postid, data, callback) {
 // returns nothing
 function admin_delete_posts_element (postid, callback) {
 	var n = parseInt (postid, 10);
-	if (!n || n < 1) {
-		return callback (code_response (400));
+	if (!n || !isInt (n) ||  n < 1) {
+		return callback (code_response (400, "Invalid post number"));
 	}
 	pg_query ({
 		text: "DELETE FROM posts WHERE id = $1;",
@@ -380,15 +426,19 @@ function admin_get_posts_collection (callback) {
 // data: contents and metadata of the blog post
 // callback: function to call when the post has been inserted
 // returns nothing
+// on success, serves empty (201)
+// on invalid user data, serves plain text (400)
+// on error running query, serves plain text (500)
 function admin_post_posts_collection (data, callback) {
-	var obj = null;
+	// input verification
+	var obj;
 	try {
-		obj = JSON.parse(data);
+		obj = JSON.parse (data);
 	} catch (err) {
-		return callback (code_response (400));
+		return callback (code_response (400, sane_error (err)));
 	}
-	if (!obj) {
-		return callback (code_response (400));
+	if (! is_valid_post (obj)) {
+		return callback (code_response (400, "Invalid data"));
 	}
 	pg_query ({
 		text: "INSERT INTO posts (title, published, categories, blurb, contents) VALUES ($1, CURRENT_DATE, $2, $3, $4);",
@@ -409,11 +459,12 @@ function admin_post_posts_collection (data, callback) {
 // get a list of files
 // callback: function to call when the list has been generated
 // returns nothing
+// on success, serves json (200)
+// on error, serves plain text (500)
 function admin_get_files_collection (callback) {
 	fs.readdir (conf.dirs.root + "/static", function (err, files) {
 		if (err) {
-			console.error ("Error reading directory", err);
-			return callback (code_response(500));
+			return callback (code_response (500, sane_error (err)));
 		} else {
 			return callback ({
 				code: 200,
@@ -428,38 +479,63 @@ function admin_get_files_collection (callback) {
 // data: an object containing file contents and metadata
 // callback: function to call when creation completes
 // returns nothing
+// on success, serves empty (201)
+// on invalid user data, serves plain text (400)
+// on write error, serves plain text (500)
 function admin_post_files_collection (data, callback) {
-	var obj = null;
+	var obj;
 	try {
 		obj = JSON.parse(data);
 	} catch (err) {
-		return callback (code_response (400));
+		return callback (code_response (500, sane_error (err)));
 	}
+	
+	if (obj instanceof Array === false) {
+		return callback (code_response (400, "Need array, not " + typeof obj));
+	}
+	
 	for (var i = 0, len = obj.length; i < len; i++) {
+		if (
+			typeof obj[i].name !== "string" ||
+			obj[i].name.length === 0 ||
+			typeof obj[i].data !== "string" ||
+			obj[i].data === 0
+		) {
+			return callback (code_response (400, "Invalid data"));
+		}
+		var fd;
 		try {
-			var fd = fs.openSync (conf.dirs.root + "/static/" + obj[i].name, "w", 288);
-			var buf = new Buffer (obj[i].data, "base64");
+			fd = fs.openSync (conf.dirs.root + "/static/" + obj[i].name, "w", 288);
+		} catch (err) {
+			return callback (code_response (500, "Error opening file\n" + sane_error (err)));
+		}
+		var buf = new Buffer (obj[i].data, "base64");
+		try {
 			fs.writeSync (fd, buf, 0, buf.length, null);
+		} catch (err) {
+			return callback (code_response (500, "Error writing to file\n" + sane_error (err)));
+		}
+		try {
 			fs.closeSync (fd);
 		} catch (err) {
-			console.error ("Error writing file", err);
-			return callback (code_response (500));
+			return callback (code_response (500, "Error closing file\n" + sane_error (err)));
 		}
 	}
-	return callback (code_response (200));
+	return callback (code_response (201));
 }
 
 // delete a static file
 // file: the file name
 // callback: function to call when deletion finishes
 // returns nothing
+// on success, serves empty (204)
+// on failure, serves plain text (500)
 function admin_delete_files_element (file, callback) {
 	fs.unlink (conf.dirs.root + "/static/" + file, function (err) {
 		if (err) {
-			console.error ("Error deleting file", err);
-			return callback (code_response (400));
+			return callback (code_response (500, sane_error(err)));
 		} else {
-			return callback (code_response (200));
+			return callback (code_response (204));
 		}
 	});
 }
@@ -468,9 +544,18 @@ function admin_delete_files_element (file, callback) {
 // data: the data sent
 // callback: the function to call when response is ready
 // returns nothing
+// on success, serves html content (200)
+// if the user data can't be rendered, serves plain text (400)
 function admin_preview (data, callback) {
+	var obj;
 	try {
-		var obj = JSON.parse (data);
+		obj = JSON.parse (data);
+	} catch (err) {
+		return callback (code_response (400, sane_error(err)));
+	}
+	if (! is_valid_post (obj)) {
+		return callback (code_response (400, "Invalid data"));
+	} else {
 		return callback ({
 			code: 200,
 			message: {"Content-type": "text/html"},
@@ -479,15 +564,16 @@ function admin_preview (data, callback) {
 				post: obj
 			})
 		});
-	} catch (err) {
-		return callback (code_response (400));
 	}
 }
 
-// secondary http listener function, for administrator functions
+// secondary http listener function, for administrator private API
 // req: node.js http request object
 // res: node.js http response object
 // returns nothing
+// serves whatever the called functions serve
+// if a function is not found, serves empty (404)
+// if a method is not allowed, serves empty (405)
 function admin_request_listener (req, res) {
 	// a simple function to help with not repeating oneself
 	function DRY (conf) { serve_response (conf, res); }
@@ -586,8 +672,7 @@ function admin_request_listener (req, res) {
 		}
 		break;
 	default:
-		// not implemented
-		serve_response (code_response (400), res);
+		serve_response (code_response (404), res);
 		break;
 	}
 }

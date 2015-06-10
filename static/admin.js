@@ -136,6 +136,25 @@ function gen_delete_file_function (name, elem) {
 	};
 }
 
+function preview_entry () {
+	var data = JSON.stringify ({
+		title: v.elems["post_title"].value,
+		blurb: v.elems["post_blurb"].value,
+		contents: v.elems["post_content"].value,
+		categories: v.elems["post_categories"].value.split(" "),
+		published: Date.now()
+	});
+	
+	XHR ("POST", "/admin/preview", data, function () {
+		if (this.status === 200) {
+			var popup = window.open("about:blank", "(PREVIEW) " + data.title);
+			popup.document.write (this.responseText);
+		} else {
+			// todo
+		}
+	});
+}
+
 function post_entry () {
 	function DRY () {
 		if (this.status === 200) {
@@ -262,18 +281,18 @@ function show_dialog (init_function) {
 	if (v.elems["dialog"].hasChildNodes()) {
 		clear_children (v.elems["dialog"]);
 	}
-	v.elems["dialog-backdrop"].style.display = "block";
+	v.elems["dialog_backdrop"].style.display = "block";
 	v.elems["dialog"].style.display = "block";
 	init_function (v.elems["dialog"]);
-	v.elems["dialog-backdrop"].className = "end";
+	v.elems["dialog_backdrop"].className = "end";
 	v.elems["dialog"].className = "end";
 }
 
 function hide_dialog () {
-	v.elems["dialog-backdrop"].className = "";
+	v.elems["dialog_backdrop"].className = "";
 	v.elems["dialog"].className = "";
 	v.dialog_timeout = setTimeout (function () {
-		v.elems["dialog-backdrop"].style.display = "none";
+		v.elems["dialog_backdrop"].style.display = "none";
 		v.elems["dialog"].style.display = "none";
 		clear_children(v.elems["dialog"]);
 		v.dialog_timeout = null;
@@ -400,7 +419,7 @@ function main () {
 		file_input: document.querySelector ("#file_author > input[type='file']"),
 		file_submit: document.querySelector ("#file_author > input[type='submit']"),
 		
-		"dialog-backdrop": document.querySelector ("#backdrop"),
+		"dialog_backdrop": document.querySelector ("#backdrop"),
 		dialog: document.querySelector ("#dialog"),
 		progressbar: document.querySelector ("#progressbar"),
 	};
@@ -410,6 +429,7 @@ function main () {
 	v.elems["files_list_link"].onclick = activate_files_list;
 	v.elems["posts_list_link"].onclick = activate_posts_list;
 
+	v.elems["post_preview"].onclick = preview_entry;
 	v.elems["post_submit"].onclick = post_entry;
 	v.elems["file_submit"].onclick = file_entry;
 

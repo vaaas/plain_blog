@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/* jshint -W083 */
-/* jshint -W069 */
-/* jshint -W010 */
 /* jshint -W009 */
+/* jshint -W010 */
+/* jshint -W069 */
+/* jshint -W083 */
 
 "use strict";
 
@@ -12,6 +12,7 @@ var url = require("url");
 var dot = require("dot");
 var pg = require("pg").native;
 
+// configuration object
 var conf = {
 	http: {
 		port: process.env.HTTP_PORT || 50000
@@ -25,8 +26,18 @@ var conf = {
 	},
 };
 
-var template = null;
+// template function
+var template = dot.template (
+	fs.readFileSync (
+		conf.dirs.root + "/template.html",
+		{"encoding": "utf-8"}
+	)
+);
 
+// execute a postgres query
+// queryconf: a node-pg query configuration object
+// callback (err, result): function to call when the query completes
+// returns nothing
 function pg_query (queryconf, callback) {
 	pg.connect (conf.pg.constring, function (err, client, done) {
 		if (err) {
@@ -45,6 +56,10 @@ function pg_query (queryconf, callback) {
 	});
 }
 
+// extract data sent by a POST or PUT request
+// req: node.js http request object
+// callback (data): function to call when extraction completes
+// returns nothing
 function extract_request_data (req, callback) {
 	var body = "";
 	req.on ("data", function (data) {
@@ -55,6 +70,9 @@ function extract_request_data (req, callback) {
 	});
 }
 
+// check whether the password provided matches the administrator password
+// password: the password received
+// returns bool
 function is_authorised (password) {
 	if (!password) {
 		return false;
@@ -65,6 +83,9 @@ function is_authorised (password) {
 	}
 }
 
+// create a very simple response configuration object
+// num: number of the response code
+// returns a response configuration object
 function code_response (num) {
 	return {
 		code: num,
@@ -73,11 +94,18 @@ function code_response (num) {
 	};
 }
 
+// serve a response
+// conf: a response configuration object
+// res: node.js http response object
+// returns nothing
 function serve_response (conf, res) {
 	res.writeHead (conf.code, conf.message, conf.headers);
 	res.end (conf.data);
 }
 
+// generate a node-pg query configuration object based on a user query
+// query: the user query
+// returns a node-pg query configuration object
 function sql_generator (query) {
 	if (!query) {
 		return {
@@ -86,20 +114,26 @@ function sql_generator (query) {
 		};
 	}
 
-	var arr = new Array();
-	var vals = new Array();
-	var counter = 1;
-	var id = null;
-	var verb = "WHERE";
-	var reverse = false;
-
+	var arr = new Array(); // array of lines
+	var vals = new Array(); // array of values for the queryconf object
+	var counter = 1; // counter of values inserted so far
+	var id = null; // the maximum / minimum id queried against
+	var verb = "WHERE"; // verb to use when starting a query
+	var rev = false; // whether to use reverse sorting
+	
+	// we'll push lines to arr and parameters (if any) to vals
 	arr.push ("SELECT * FROM posts");
 	if (query.category) {
+		// the user is requesting posts in a specific category
 		arr.push (verb + " $" + counter + " = ANY(categories)");
 		vals.push(query.category);
 		counter += 1;
+		// further searches should be combined with AND
 		verb = "AND";
 	}
+	// the user can ask for one of two things:
+	// posts after a specific id
+	// or posts before a specific id
 	if (query.after) {
 		id = parseInt (query.after, 10);
 		if (id && id >= 1) {
@@ -113,15 +147,18 @@ function sql_generator (query) {
 			arr.push (verb + " id > $" + counter);
 			vals.push (id);
 			counter += 1;
-			reverse = true;
+			rev = true;
 		}
 	}
-	if (reverse) {
+	// if the user asked for posts before an id, reverse the order so that
+	// the user sees them in the correct order
+	if (rev) {
 		arr.push ("ORDER BY id DESC");
 	} else {
 		arr.push ("ORDER BY id ASC");
 	}
 
+	// a sensible post limit for a regular blog
 	arr.push ("LIMIT 10;");
 
 	return {
@@ -130,30 +167,42 @@ function sql_generator (query) {
 	};
 }
 
+// render the page for GET /posts
+// query: the user query object
+// callback (res_conf): the function to call when the response is ready
+// returns nothing
 function get_posts_collection (query, callback) {
 	var qc = sql_generator (query);
 	pg_query (qc, function (err, result) {
 		if (err) {
+			// something went wrong
 			return callback (code_response (500));
 		} else if (result.rowCount === 0) {
+			// no results
 			return callback (code_response (404));
-		} else {
-			return callback ({
-				code: 200,
-				message: {"Content-type": "text/html"},
-				data: template ({
-					type: "collection",
-					category: (query && query.category) ? query.category : null,
-					posts: result.rows
-				})
-			});
 		}
+		// the response object
+		return callback ({
+			code: 200,
+			message: {"Content-type": "text/html"},
+			data: template ({ // render the page
+				type: "collection",
+				category: (query && query.category) ? query.category : null,
+				posts: result.rows
+			})
+		});
 	});
 }
 
+// render the page for GET /posts/postid
+// id: the post id
+// callback (res_conf): the function to call when the response is ready
+// returns nothing
 function get_posts_element (id, callback) {
+	// urls consist of strings, but we need integers for the query
 	id = parseInt (id, 10);
 	if (!id || id < 1) {
+		// the user has intentionally requested an invalid post
 		return callback (code_response (400));
 	}
 	pg_query ({
@@ -161,29 +210,40 @@ function get_posts_element (id, callback) {
 		values: [id]
 	}, function (err, result) {
 		if (err) {
+			// something went wrong
 			return callback (code_response (500));
 		} else if (result.rowCount === 0) {
+			// post not found
 			return callback (code_response (404));
-		} else {
-			return callback ({
-				code: 200,
-				message: {"Content-type": "text/html"},
-				data: template ({
-					type: "element",
-					post: result.rows[0]
-				})
-			});
 		}
+		// the response object
+		return callback ({
+			code: 200,
+			message: {"Content-type": "text/html"},
+			data: template ({ // render the page
+				type: "element",
+				post: result.rows[0]
+			})
+		});
 	});
 }
 
+// main http listener function
+// wait for requests and handle them appropriately
+// req: node.js http request object
+// res: node.js http response object
+// returns nothing
 function request_listener (req, res) {
+	// a simple function to help with not repeating oneself
 	function DRY (conf) { serve_response (conf, res); }
+	// parse the url and delimit the directories
 	var purl = url.parse (req.url, true);
 	var pathparts = purl.pathname.split ("/");
 
 	switch (pathparts[1]) {
 	case "admin":
+		// private API for the administrator requires proper authentication
+		// password is sent through the "x-password" header
 		if (is_authorised (req.headers["x-password"])) {
 			admin_request_listener (req, res);
 		} else {
@@ -191,18 +251,31 @@ function request_listener (req, res) {
 		}
 		break;
 	case "posts":
-		if (pathparts [2]) {
+		// public api for reading posts
+		if (req.method !== "GET") {
+			// guests can do nothing but read posts
+			serve_response (code_response (405));
+		} else if (pathparts [2]) {
+			// GET /posts/postid
+			// render a single post
 			get_posts_element (pathparts[2], DRY);
 		} else {
+			// GET /posts
+			// render a list / summary of several posts
 			get_posts_collection (purl.query, DRY);
 		}
 		break;
 	default:
+		// not implemented yet
 		serve_response (code_response (400), res);
 		break;
 	}
 }
 
+// get a blog post
+// postid: id of the post to get
+// callback: function to call when retrieval completes
+// returns nothing
 function admin_get_posts_element (postid, callback) {
 	var n = parseInt (postid, 10);
 	if (!n || n < 1) {
@@ -226,6 +299,11 @@ function admin_get_posts_element (postid, callback) {
 	});
 }
 
+// replace a blog post
+// postid: the post to replace
+// data: contents and metadata of the post
+// callback: function to call when replacement completes
+// returns nothing
 function admin_put_posts_element (postid, data, callback) {
 	var n = parseInt (postid, 10);
 	var obj = null;
@@ -253,6 +331,10 @@ function admin_put_posts_element (postid, data, callback) {
 	});
 }
 
+// delete a blog post
+// postid: the id of the post to delete
+// callback: function to call when deletion completes
+// returns nothing
 function admin_delete_posts_element (postid, callback) {
 	var n = parseInt (postid, 10);
 	if (!n || n < 1) {
@@ -274,6 +356,9 @@ function admin_delete_posts_element (postid, callback) {
 	});
 }
 
+// get a list of all blog posts
+// callback: function to call when the list has been generated
+// returns nothing
 function admin_get_posts_collection (callback) {
 	pg_query ({
 		text: "SELECT id, published, title FROM posts ORDER BY id;",
@@ -291,6 +376,10 @@ function admin_get_posts_collection (callback) {
 	});
 }
 
+// create a blog post
+// data: contents and metadata of the blog post
+// callback: function to call when the post has been inserted
+// returns nothing
 function admin_post_posts_collection (data, callback) {
 	var obj = null;
 	try {
@@ -317,6 +406,9 @@ function admin_post_posts_collection (data, callback) {
 	});
 }
 
+// get a list of files
+// callback: function to call when the list has been generated
+// returns nothing
 function admin_get_files_collection (callback) {
 	fs.readdir (conf.dirs.root + "/static", function (err, files) {
 		if (err) {
@@ -332,6 +424,10 @@ function admin_get_files_collection (callback) {
 	});
 }
 
+// create a static file
+// data: an object containing file contents and metadata
+// callback: function to call when creation completes
+// returns nothing
 function admin_post_files_collection (data, callback) {
 	var obj = null;
 	try {
@@ -353,6 +449,10 @@ function admin_post_files_collection (data, callback) {
 	return callback (code_response (200));
 }
 
+// delete a static file
+// file: the file name
+// callback: function to call when deletion finishes
+// returns nothing
 function admin_delete_files_element (file, callback) {
 	fs.unlink (conf.dirs.root + "/static/" + file, function (err) {
 		if (err) {
@@ -364,32 +464,43 @@ function admin_delete_files_element (file, callback) {
 	});
 }
 
+// render a post page, but based on the data sent by a request instead of db
+// data: the data sent
+// callback: the function to call when response is ready
+// returns nothing
 function admin_preview (data, callback) {
-	var obj = null;
 	try {
-		obj = JSON.parse (data);
+		var obj = JSON.parse (data);
+		return callback ({
+			code: 200,
+			message: {"Content-type": "text/html"},
+			data: template ({
+				type: "element",
+				post: obj
+			})
+		});
 	} catch (err) {
 		return callback (code_response (400));
 	}
-	return callback ({
-		code: 200,
-		message: {"Content-type": "text/html"},
-		data: template ({
-			type: "element",
-			post: obj
-		})
-	});
 }
 
+// secondary http listener function, for administrator functions
+// req: node.js http request object
+// res: node.js http response object
+// returns nothing
 function admin_request_listener (req, res) {
+	// a simple function to help with not repeating oneself
 	function DRY (conf) { serve_response (conf, res); }
+	// parse url and delimit the directories
 	var purl = url.parse (req.url, true);
 	var pathparts = purl.pathname.split ("/");
 
+	// first we're going to match resources, and then their available verbs
 	switch (pathparts[2]) {
 	case "posts":
 		if (pathparts[3]) {
 			// /admin/posts/postid
+			// available methods: GET, PUT, DELETE
 			switch (req.method) {
 			case "GET":
 				admin_get_posts_element (pathparts[3], DRY);
@@ -408,6 +519,7 @@ function admin_request_listener (req, res) {
 			}
 		} else {
 			// /admin/posts
+			// available methods: GET, POST
 			switch (req.method) {
 			case "GET":
 				admin_get_posts_collection (DRY);
@@ -425,6 +537,8 @@ function admin_request_listener (req, res) {
 		break;
 	case "files":
 		if (pathparts[3]) {
+			// /admin/files/filename
+			// available methods: DELETE
 			switch (req.method) {
 			case "DELETE":
 				admin_delete_files_element (pathparts[3], DRY);
@@ -434,6 +548,8 @@ function admin_request_listener (req, res) {
 				break;
 			}
 		} else {
+			// /admin/files
+			// available methods: GET, POST
 			switch (req.method) {
 			case "GET":
 				admin_get_files_collection (DRY);
@@ -450,6 +566,8 @@ function admin_request_listener (req, res) {
 		}
 		break;
 	case "preview":
+		// /admin/preview
+		// available methods: POST
 		if (req.method === "POST") {
 			extract_request_data (req, function (data) {
 				admin_preview (data, DRY);
@@ -459,6 +577,8 @@ function admin_request_listener (req, res) {
 		}
 		break;
 	case "auth":
+		// /admin/auth
+		// available methods: GET
 		if (req.method === "GET") {
 			serve_response (code_response (200), res);
 		} else {
@@ -466,21 +586,21 @@ function admin_request_listener (req, res) {
 		}
 		break;
 	default:
+		// not implemented
 		serve_response (code_response (400), res);
 		break;
 	}
 }
 
+// main function
+// starts the http server
+// no arguments
+// returns nothing
 function main () {
-	template = dot.template (
-		fs.readFileSync (
-			conf.dirs.root + "/template.html",
-			{"encoding": "utf-8"}
-		)
-	);
 	var server = http.createServer();
 	server.on ("request", request_listener);
 	server.listen (conf.http.port, "127.0.0.1");
 }
 
+// let's get going!
 main();

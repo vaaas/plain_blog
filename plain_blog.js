@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /* jshint -W009 */
 /* jshint -W010 */
 /* jshint -W069 */
@@ -131,14 +130,7 @@ function serve_response (conf, res) {
 // query: the user query
 // returns a node-pg query configuration object
 function sql_generator (query) {
-	// check if query is empty
-	if (
-		typeof query !== "object" || (
-			(query.category === undefined || query.category.length === 0) &&
-			(query.after === undefined || query.after.length === 0) &&
-			(query.prev === undefined || query.prev.length === 0)
-		)
-	) {
+	if (!query || typeof query !== "object") {
 		return {
 			text: "SELECT * FROM posts ORDER BY id LIMIT 10;",
 			values: []
@@ -208,9 +200,6 @@ function sql_generator (query) {
 // if something goes wrong with the query, serves plain text (500)
 function get_posts_collection (query, callback) {
 	var qc = sql_generator (query);
-	if (!qc) {
-		return callback (code_response (400, "Invalid query"));
-	}
 	pg_query (qc, function (err, result) {
 		if (err) {
 			// something went wrong
@@ -318,17 +307,20 @@ function request_listener (req, res) {
 // postid: id of the post to get
 // callback: function to call when retrieval completes
 // returns nothing
+// on success, serves json (200)
+// on invalid user data, serves plain text (400)
+// on error, serves plain text (500)
 function admin_get_posts_element (postid, callback) {
 	var n = parseInt (postid, 10);
 	if (!n || !isInt (n) || n < 1) {
-		return callback (code_response (400));
+		return callback (code_response (400, "ID cannot be smaller than 1"));
 	}
 	pg_query ({
 		text: "SELECT * FROM posts WHERE id = $1;",
 		values: [n]
 	}, function (err, result) {
 		if (err) {
-			return callback (code_response (500));
+			return callback (code_response (500, sane_error (err)));
 		} else if (result.rowCount === 0) {
 			return callback (code_response (404));
 		} else {
@@ -346,6 +338,9 @@ function admin_get_posts_element (postid, callback) {
 // data: contents and metadata of the post
 // callback: function to call when replacement completes
 // returns nothing
+// on success, serves json (200)
+// on invalid user data, serves plain text (400)
+// on error, serves plain text (500)
 function admin_put_posts_element (postid, data, callback) {
 	// input verification
 	var n = parseInt (postid, 10);
@@ -356,7 +351,7 @@ function admin_put_posts_element (postid, data, callback) {
 	try {
 		obj = JSON.parse (data);
 	} catch (err) {
-		return callback (code_response (400));
+		return callback (code_response (400, sane_error (err)));
 	}
 	if (! is_valid_post (obj)) {
 		return callback (code_response (400, "Invalid data"));
@@ -366,7 +361,7 @@ function admin_put_posts_element (postid, data, callback) {
 		values: [obj.title, obj.categories, obj.contents, n]
 	}, function (err, result) {
 		if (err) {
-			return callback (code_response (500));
+			return callback (code_response (500, sane_error(err)));
 		} else {
 			return callback ({
 				code: 200,
@@ -381,17 +376,20 @@ function admin_put_posts_element (postid, data, callback) {
 // postid: the id of the post to delete
 // callback: function to call when deletion completes
 // returns nothing
+// on success, serves empty (204)
+// on invalid user data, serves plain text (400)
+// on error, serves plain text (500)
 function admin_delete_posts_element (postid, callback) {
 	var n = parseInt (postid, 10);
 	if (!n || !isInt (n) ||  n < 1) {
-		return callback (code_response (400, "Invalid post number"));
+		return callback (code_response (400, "ID can't be less than 1'"));
 	}
 	pg_query ({
 		text: "DELETE FROM posts WHERE id = $1;",
 		values: [n]
 	}, function (err, result) {
 		if (err) {
-			return callback (code_response (500));
+			return callback (code_response (500, sane_error(err)));
 		} else {
 			return callback ({
 				code: 200,
@@ -405,13 +403,15 @@ function admin_delete_posts_element (postid, callback) {
 // get a list of all blog posts
 // callback: function to call when the list has been generated
 // returns nothing
+// on success, serves json (200)
+// on error, serves plain text (500))
 function admin_get_posts_collection (callback) {
 	pg_query ({
 		text: "SELECT id, published, title FROM posts ORDER BY id;",
 		values: []
 	}, function (err, result) {
 		if (err) {
-			return callback (code_response (500));
+			return callback (code_response (500, sane_error(err)));
 		} else {
 			return callback ({
 				code: 200,
@@ -426,7 +426,7 @@ function admin_get_posts_collection (callback) {
 // data: contents and metadata of the blog post
 // callback: function to call when the post has been inserted
 // returns nothing
-// on success, serves empty (201)
+// on success, serves json containing the inserted id (201)
 // on invalid user data, serves plain text (400)
 // on error running query, serves plain text (500)
 function admin_post_posts_collection (data, callback) {
@@ -441,16 +441,16 @@ function admin_post_posts_collection (data, callback) {
 		return callback (code_response (400, "Invalid data"));
 	}
 	pg_query ({
-		text: "INSERT INTO posts (title, published, categories, blurb, contents) VALUES ($1, CURRENT_DATE, $2, $3, $4);",
+		text: "INSERT INTO posts (title, published, categories, blurb, contents) VALUES ($1, CURRENT_DATE, $2, $3, $4) RETURNING id;",
 		values: [obj.title, obj.categories, obj.blurb, obj.contents]
 	}, function (err, result) {
 		if (err) {
-			return callback (code_response (500));
+			return callback (code_response (500, sane_error (err)));
 		} else {
 			return callback ({
 				code: 200,
 				message: {"Content-type": "application/json"},
-				data: JSON.stringify (result)
+				data: JSON.stringify (result.rows[0])
 			});
 		}
 	});
@@ -485,9 +485,9 @@ function admin_get_files_collection (callback) {
 function admin_post_files_collection (data, callback) {
 	var obj;
 	try {
-		obj = JSON.parse(data);
+		obj = JSON.parse (data);
 	} catch (err) {
-		return callback (code_response (500, sane_error (err)));
+		return callback (code_response (400, sane_error (err)));
 	}
 	
 	if (obj instanceof Array === false) {
@@ -507,18 +507,21 @@ function admin_post_files_collection (data, callback) {
 		try {
 			fd = fs.openSync (conf.dirs.root + "/static/" + obj[i].name, "w", 288);
 		} catch (err) {
-			return callback (code_response (500, "Error opening file\n" + sane_error (err)));
+			return callback (code_response (500, sane_error (err)));
 		}
 		var buf = new Buffer (obj[i].data, "base64");
+		if (!buf) {
+			return callback (code_response (400, "Empty file: " + obj[i].name));
+		}
 		try {
 			fs.writeSync (fd, buf, 0, buf.length, null);
 		} catch (err) {
-			return callback (code_response (500, "Error writing to file\n" + sane_error (err)));
+			return callback (code_response (500, sane_error (err)));
 		}
 		try {
 			fs.closeSync (fd);
 		} catch (err) {
-			return callback (code_response (500, "Error closing file\n" + sane_error (err)));
+			return callback (code_response (500, sane_error (err)));
 		}
 	}
 	return callback (code_response (201));
@@ -600,7 +603,7 @@ function admin_request_listener (req, res) {
 				admin_delete_posts_element (pathparts[3], DRY);
 				break;
 			default:
-				serve_response (code_response (405), res);
+				serve_response (code_response (405, "Method not allowed"), res);
 				break;
 			}
 		} else {
@@ -616,7 +619,7 @@ function admin_request_listener (req, res) {
 				});
 				break;
 			default:
-				serve_response (code_response (405), res);
+				serve_response (code_response (405, "Method not allowed"), res);
 				break;
 			}
 		}
@@ -630,7 +633,7 @@ function admin_request_listener (req, res) {
 				admin_delete_files_element (pathparts[3], DRY);
 				break;
 			default:
-				serve_response (code_response (405), res);
+				serve_response (code_response (405, "Method not allowed"), res);
 				break;
 			}
 		} else {
@@ -646,7 +649,7 @@ function admin_request_listener (req, res) {
 				});
 				break;
 			default:
-				serve_response (code_response (405), res);
+				serve_response (code_response (405, "Method not allowed"), res);
 				break;
 			}
 		}
@@ -659,7 +662,7 @@ function admin_request_listener (req, res) {
 				admin_preview (data, DRY);
 			});
 		} else {
-			serve_response (code_response (405), res);
+			serve_response (code_response (405, "Method not allowed"), res);
 		}
 		break;
 	case "auth":
@@ -668,11 +671,11 @@ function admin_request_listener (req, res) {
 		if (req.method === "GET") {
 			serve_response (code_response (200), res);
 		} else {
-			serve_response (code_response (405), res);
+			serve_response (code_response (405, "Method not allowed"), res);
 		}
 		break;
 	default:
-		serve_response (code_response (404), res);
+		serve_response (code_response (404, "Not found"), res);
 		break;
 	}
 }

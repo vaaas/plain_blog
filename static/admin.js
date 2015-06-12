@@ -178,12 +178,15 @@ function password_dialog (dialog) {
 		case 200:
 			show_dialog (info_dialog ("Authentication successful."));
 			break;
-		default:
+		case 401:
 			show_dialog (info_dialog ("Invalid password.", function () {
 				show_dialog (password_dialog);
 			}));
 			break;
 		}
+		default:
+			error_dialog (this.responseText);
+			break;
 	}
 	
 	var form = document.createElement ("form");
@@ -207,11 +210,29 @@ function password_dialog (dialog) {
 	password.focus();
 }
 
+function error_dialog (text, callback) {
+	var parent = document.createElement ("div");
+	
+	var info = document.createElement ("div");
+	info.innerText = "Something went wrong. Server responded with:";
+	
+	var pre = document.createElement ("pre");
+	pre.innerText = text;
+	
+	parent.appendChild (info);
+	parent.appendChild (pre);
+	
+	return dialog (parent, callback);
+}
+
 function info_dialog (text, callback) {
-	return function (dialog) {
-		var info = document.createElement ("div");
-		info.innerText = text;
-		
+	var info = document.createElement ("div");
+	info.innerText = text;
+	return dialog (element, callback);
+}
+
+function dialog (element, callback) {
+	return function (dialog) {		
 		var container = document.createElement ("div");
 		container.className = "input_container";
 		
@@ -225,7 +246,7 @@ function info_dialog (text, callback) {
 		};
 		
 		container.appendChild (ok);
-		dialog.appendChild (info);
+		dialog.appendChild (element);
 		dialog.appendChild (container);
 		
 		ok.focus();
@@ -287,7 +308,7 @@ function files_list_link_clicked () {
 			render_files_list (obj);
 			show_files_list();
 		} else {
-			//todo
+			show_dialog (error_dialog (this.responseText));
 		}
 	});
 }
@@ -300,7 +321,7 @@ function post_list_link_clicked () {
 			render_posts_list (obj);
 			show_posts_list();
 		} else {
-			//todo
+			show_dialog (error_dialog (this.responseText));
 		}
 	});
 }
@@ -319,7 +340,7 @@ function post_preview_clicked () {
 			var popup = window.open("about:blank", "(PREVIEW) " + data.title);
 			popup.document.write (this.responseText);
 		} else {
-			// todo
+			show_dialog (error_dialog (this.responseText));
 		}
 	});
 }
@@ -327,10 +348,23 @@ function post_preview_clicked () {
 function post_submit_clicked () {
 	function DRY () {
 		if (this.status === 200) {
-			//todo
-			hide_nav();
+			var container = document.createElement ("div");
+			
+			var text = document.createElement ("div");
+			text.innerText = "Post successfully created. You can see it here: ";
+			
+			var link = document.createElement ("a");
+			link.href = "/posts/" + JSON.parse(this.responseText).id;
+			link.innerText = link.href;
+			
+			container.appendChild (text);
+			container.appendChild (link);
+			
+			dialog (container, function () {
+				hide_nav ();
+			});
 		} else {
-			//todo
+			error_dialog (this.responseText);
 		}
 	}
 	var data = JSON.stringify ({
@@ -415,7 +449,7 @@ function delete_post_clicked (id, elem) {
 
 function delete_file_clicked (name, elem) {
 	return function () {
-		XHR ("DELETE", "/admin/files/" + name, null, function () {
+		XHR ("DELETE", "/admin/files/" + encodeURIComponent (name), null, function () {
 			if (this.status === 200) {
 				v.elems["files_list"].removeChild (elem);
 			} else {
@@ -448,7 +482,7 @@ function main () {
 		file_input: document.querySelector ("#file_author > input[type='file']"),
 		file_submit: document.querySelector ("#file_author > input[type='submit']"),
 		
-		"dialog_backdrop": document.querySelector ("#backdrop"),
+		dialog_backdrop: document.querySelector ("#backdrop"),
 		dialog: document.querySelector ("#dialog"),
 		progressbar: document.querySelector ("#progressbar"),
 	};

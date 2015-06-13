@@ -152,6 +152,8 @@ section.active {
 	z-index: 1000;
 	opacity: 0;
 	transition: opacity 0.2s ease, transform 0.2s ease;
+	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 #dialog.end {

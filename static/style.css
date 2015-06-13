@@ -1,11 +1,11 @@
 @font-face {
 	font-family: Alfa Slab One;
-	src: url("/AlfaSlabOne.ttf");
+	src: url("/static/AlfaSlabOne.ttf");
 }
 
 @font-face {
 	font-family: Adamina;
-	src: url("/Adamina.ttf");
+	src: url("/static/Adamina.ttf");
 }
 
 body, html { min-height: 100%; }
@@ -129,6 +129,12 @@ div.published, div.categories {
 	font-family: monospace;
 	opacity: 0.7;
 }
+
+div.categories > a { margin-right: 0.5em; }
+
+div.categories > a:first-of-type { margin-left: 0.5em; }
+
+div.categories > a:last-of-type { margin-right: 0; }
 
 article {
 	padding: 1em;

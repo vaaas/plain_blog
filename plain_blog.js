@@ -41,13 +41,11 @@ function pg_query (queryconf, callback) {
 	pg.connect (conf.pg.constring, function (err, client, done) {
 		if (err) {
 			done();
-			console.error ("error fetching client from pool", err);
 			return callback (err);
 		}
 		client.query (queryconf, function (err, result) {
 			done();
 			if (err) {
-				console.error ("error running query", err);
 				return callback (err);
 			}
 			return callback (null, result);
@@ -130,9 +128,13 @@ function serve_response (conf, res) {
 // query: the user query
 // returns a node-pg query configuration object
 function sql_generator (query) {
-	if (!query || typeof query !== "object") {
+	if (
+		typeof query !== "object" ||
+		(!query.category && !query.after && !query.before)
+	) {
+		// query is empty
 		return {
-			text: "SELECT * FROM posts ORDER BY id LIMIT 10;",
+			text: "SELECT * FROM posts ORDER BY id DESC LIMIT 10;",
 			values: []
 		};
 	}
@@ -142,7 +144,7 @@ function sql_generator (query) {
 	var counter = 1; // counter of values inserted so far
 	var id = null; // the maximum / minimum id queried against
 	var verb = "WHERE"; // verb to use when starting a query
-	var rev = false; // whether to use reverse sorting
+	var rev = true; // whether to use reverse sorting
 	
 	// we'll push lines to arr and parameters (if any) to vals
 	arr.push ("SELECT * FROM posts");
@@ -163,14 +165,14 @@ function sql_generator (query) {
 			arr.push (verb + " id > $" + counter);
 			vals.push (id);
 			counter += 1;
+			rev = false;
 		}
-	} else if (query.prev) {
-		id = parseInt (query.prev, 10);
+	} else if (query.before) {
+		id = parseInt (query.before, 10);
 		if (id && isInt (id) && id >= 1) {
-			arr.push (verb + " id > $" + counter);
+			arr.push (verb + " id < $" + counter);
 			vals.push (id);
 			counter += 1;
-			rev = true;
 		}
 	}
 	// if the user asked for posts before an id, reverse the order so that
@@ -490,41 +492,38 @@ function admin_post_files_collection (data, callback) {
 		return callback (code_response (400, sane_error (err)));
 	}
 	
-	if (obj instanceof Array === false) {
-		return callback (code_response (400, "Need array, not " + typeof obj));
+	if (typeof obj !== "object") {
+		return callback (code_response (400, "Invalid data"));
 	}
-	
-	for (var i = 0, len = obj.length; i < len; i++) {
-		if (
-			typeof obj[i].name !== "string" ||
-			obj[i].name.length === 0 ||
-			typeof obj[i].data !== "string" ||
-			obj[i].data === 0
-		) {
-			return callback (code_response (400, "Invalid data"));
-		}
-		var fd;
-		try {
-			fd = fs.openSync (conf.dirs.root + "/static/" + obj[i].name, "w", 288);
-		} catch (err) {
-			return callback (code_response (500, sane_error (err)));
-		}
-		var buf = new Buffer (obj[i].data, "base64");
-		if (!buf) {
-			return callback (code_response (400, "Empty file: " + obj[i].name));
-		}
-		try {
-			fs.writeSync (fd, buf, 0, buf.length, null);
-		} catch (err) {
-			return callback (code_response (500, sane_error (err)));
-		}
-		try {
-			fs.closeSync (fd);
-		} catch (err) {
-			return callback (code_response (500, sane_error (err)));
-		}
+	if (
+		typeof obj.name !== "string" ||
+		obj.name.length === 0 ||
+		typeof obj.data !== "string" ||
+		obj.data === 0
+	) {
+		return callback (code_response (400, "Invalid data"));
 	}
-	return callback (code_response (201));
+	var fd;
+	try {
+		fd = fs.openSync (conf.dirs.root + "/static/" + obj.name, "w", 288);
+	} catch (err) {
+		return callback (code_response (500, sane_error (err)));
+	}
+	var buf = new Buffer (obj.data, "base64");
+	if (!buf) {
+		return callback (code_response (400, "Empty file: " + obj.name));
+	}
+	try {
+		fs.writeSync (fd, buf, 0, buf.length, null);
+	} catch (err) {
+		return callback (code_response (500, sane_error (err)));
+	}
+	try {
+		fs.closeSync (fd);
+	} catch (err) {
+		return callback (code_response (500, sane_error (err)));
+	}
+	return callback (code_response (201, JSON.stringify ({filename: obj.name})));
 }
 
 // delete a static file

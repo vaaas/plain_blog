@@ -8,7 +8,7 @@ var v = {
 	dialog_timeout: null,
 	progress: 0,
 	elems: new Object()
-}
+};
 
 // ----------------------------- HELPER FUNCTIONS ------------------------------
 function clear_children (element) {
@@ -54,7 +54,7 @@ function render_file_row (parent, data) {
 	var filename = document.createElement("h1");
 	var link = document.createElement("a");
 	link.innerText = data;
-	link.href = "/" + data;
+	link.href = "/static/" + data;
 	filename.appendChild (link);
 	parent.appendChild (filename);
 
@@ -183,10 +183,12 @@ function password_dialog (dialog) {
 				show_dialog (password_dialog);
 			}));
 			break;
-		}
 		default:
-			error_dialog (this.responseText);
+			show_dialog (error_dialog (this.responseText, function () {
+				show_dialog (password_dialog);
+			}));
 			break;
+		}
 	}
 	
 	var form = document.createElement ("form");
@@ -228,7 +230,7 @@ function error_dialog (text, callback) {
 function info_dialog (text, callback) {
 	var info = document.createElement ("div");
 	info.innerText = text;
-	return dialog (element, callback);
+	return dialog (info, callback);
 }
 
 function dialog (element, callback) {
@@ -313,7 +315,7 @@ function files_list_link_clicked () {
 	});
 }
 
-function post_list_link_clicked () {
+function posts_list_link_clicked () {
 	hide_nav();
 	XHR ("GET", "/admin/posts", null, function () {
 		if (this.status === 200) {
@@ -347,7 +349,7 @@ function post_preview_clicked () {
 
 function post_submit_clicked () {
 	function DRY () {
-		if (this.status === 200) {
+		if (this.status === 201) {
 			var container = document.createElement ("div");
 			
 			var text = document.createElement ("div");
@@ -364,7 +366,7 @@ function post_submit_clicked () {
 				hide_nav ();
 			});
 		} else {
-			error_dialog (this.responseText);
+			show_dialog (error_dialog (this.responseText));
 		}
 	}
 	var data = JSON.stringify ({
@@ -382,42 +384,41 @@ function post_submit_clicked () {
 }
 
 function file_submit_clicked () {
+	function listener () {
+		if (this.status === 201) {
+			var container = document.createElement ("div");
+			
+			var text = document.createElement ("div");
+			text.innerText = "File successfully created. You can see it here: ";
+			
+			var link = document.createElement ("a");
+			link.href = "/static/" + JSON.parse(this.responseText).filename;
+			link.innerText = link.href;
+			
+			container.appendChild (text);
+			container.appendChild (link);
+			
+			dialog (container, function () {
+				hide_nav ();
+			});
+		} else {
+			show_dialog (error_dialog (this.responseText));
+		}
+	}
 	if (v.elems["file_input"].files.length === 0) {
-		return show_dialog (info_dialog ("Please select at least one file."));
+		return show_dialog (info_dialog ("Please select a file."));
 	}
 
 	var reader = new FileReader();
-	var arr = new Array();
-	var i = 0;
-	var len = v.elems["file_input"].files.length;
-	var file = v.elems["file_input"].files.item(i);
+	var file = v.elems["file_input"].files.item(0);
+	reader.readAsDataURL(file);
 
 	reader.onloadend = function () {
-		arr.push ({
-			name: file.name,
-			data: reader.result.split(",")[1]
-		});
-		i += 1;
-		file = v.elems["file_input"].files.item(i);
-		if (i < len) {
-			read_file();
-		} else {
-			XHR ("POST", "/admin/files", JSON.stringify(arr), function () {
-				if (this.status === 200) {
-					hide_nav();
-					//todo
-				} else {
-					//todo
-				}
-			});
-		}
+		XHR ("POST", "/admin/files", JSON.stringify ({
+				name: file.name,
+				data: reader.result.split(",")[1]
+			}), listener);
 	};
-
-	function read_file () {
-		reader.readAsDataURL(file);
-	}
-
-	read_file();
 }
 
 function edit_post_clicked (id) {
@@ -426,10 +427,11 @@ function edit_post_clicked (id) {
 			if (this.status === 200) {
 				var obj =  this.responseText ? JSON.parse (this.responseText) : new Object ();
 				render_post_edit (obj);
-				v.editing = data.id;
+				v.editing = obj.id;
+				hide_nav();
 				show_post_author();
 			} else {
-				//todo
+				show_dialog (error_dialog (this.responseText));
 			}
 		});
 	};
@@ -441,7 +443,7 @@ function delete_post_clicked (id, elem) {
 			if (this.status === 200) {
 				v.elems["posts_list"].removeChild (elem);
 			} else {
-				//todo
+				show_dialog (error_dialog (this.responseText));
 			}
 		});
 	};
@@ -450,10 +452,10 @@ function delete_post_clicked (id, elem) {
 function delete_file_clicked (name, elem) {
 	return function () {
 		XHR ("DELETE", "/admin/files/" + encodeURIComponent (name), null, function () {
-			if (this.status === 200) {
+			if (this.status === 204) {
 				v.elems["files_list"].removeChild (elem);
 			} else {
-				//todo
+				show_dialog (error_dialog (this.responseText));
 			}
 		});
 	};

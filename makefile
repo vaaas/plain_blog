@@ -5,12 +5,12 @@ dirs:
 	sudo chown -R node:node /usr/local/share/blog/
 
 nginx:
-	sudo install -m 644 -o root -g root blog.conf /etc/nginx/conf.d/
+	sudo install -m 644 -o root -g root nginx/blog.conf /etc/nginx/conf.d/
 
 static:
 	sudo install -m 440 -o node -g node static/* /usr/local/share/blog/static/
 
 blog:
-	sudo install -m 640 -o node -g node template.html /usr/local/share/blog/
+	sudo install -m 640 -o node -g node node/template.html /usr/local/share/blog/
 
 .PHONY: blog static nginx dirs all

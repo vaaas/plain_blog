@@ -1,3 +1,7 @@
+CREATE DATABASE plain_blog;
+
+\c plain_blog
+
 CREATE TABLE posts (
     id SERIAL PRIMARY KEY,
     published DATE NOT NULL,

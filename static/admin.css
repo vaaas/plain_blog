@@ -183,11 +183,6 @@ section.active {
 	width: 100%;
 }
 
-.input_container {
-	margin-top: 1em;
-	text-align: right;
-}
-
 #posts_list, #files_list {
 	list-style: none;
 	padding: 1em;
@@ -231,4 +226,14 @@ section.active {
 	background: white;
 	padding: 1em;
 	border-radius: 0.2em;
+}
+
+.input_container {
+	margin-top: 1em;
+	text-align: right;
+}
+
+.load_container {
+	text-align: center;
+	padding: 0.5em 0;
 }

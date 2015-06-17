@@ -53,14 +53,14 @@ function render_files_list (rows) {
 function render_file_row (parent, data) {
 	var filename = document.createElement("h1");
 	var link = document.createElement("a");
-	link.innerText = data;
+	link.textContent = data;
 	link.href = "/static/" + data;
 	filename.appendChild (link);
 	parent.appendChild (filename);
 
 	var delete_button = document.createElement("a");
 	delete_button.href ="#";
-	delete_button.innerText = "DELETE";
+	delete_button.textContent = "DELETE";
 	delete_button.onclick = delete_file_clicked (data, parent);
 
 	parent.appendChild (delete_button);
@@ -78,7 +78,7 @@ function render_posts_list (rows) {
 function render_post_row (parent, data) {
 	var title = document.createElement("h1");
 	var title_link = document.createElement("a");
-	title_link.innerText = data.title;
+	title_link.textContent = data.title;
 	title_link.href = "/posts/" + data.id;
 	title.appendChild(title_link);
 	parent.appendChild (title);
@@ -86,18 +86,18 @@ function render_post_row (parent, data) {
 	var container = document.createElement("div");
 
 	var published = document.createElement("span");
-	published.innerText = data.published.slice(0,10);
+	published.textContent = data.published.slice(0,10);
 	container.appendChild (published);
 
 	var edit_button = document.createElement("a");
 	edit_button.href = "#";
-	edit_button.innerText = "EDIT";
+	edit_button.textContent = "EDIT";
 	edit_button.onclick = edit_post_clicked (data.id);
 	container.appendChild(edit_button);
 
 	var delete_button = document.createElement("a");
 	delete_button.href = "#";
-	delete_button.innerText = "DELETE";
+	delete_button.textContent = "DELETE";
 	delete_button.onclick = delete_post_clicked (data.id, parent);
 	container.appendChild (delete_button);
 
@@ -216,10 +216,10 @@ function error_dialog (text, callback) {
 	var parent = document.createElement ("div");
 	
 	var info = document.createElement ("div");
-	info.innerText = "Something went wrong. Server responded with:";
+	info.textContent = "Something went wrong. Server responded with:";
 	
 	var pre = document.createElement ("pre");
-	pre.innerText = text;
+	pre.textContent = text;
 	
 	parent.appendChild (info);
 	parent.appendChild (pre);
@@ -229,7 +229,7 @@ function error_dialog (text, callback) {
 
 function info_dialog (text, callback) {
 	var info = document.createElement ("div");
-	info.innerText = text;
+	info.textContent = text;
 	return dialog (info, callback);
 }
 
@@ -328,6 +328,36 @@ function posts_list_link_clicked () {
 	});
 }
 
+function load_from_file_clicked () {
+	function extract_keywords (e) {
+		for (var i = 0, len = e.length; i < len; i++) {
+			if (e[i].name === "keywords") {
+				return e[i].content;
+			}
+		}
+		throw "Keywords element not found";
+	}
+	
+	var doc;
+	var parser = new DOMParser();
+	var reader = new FileReader();
+	var file = v.elems["post_from_file"].files.item(0);
+	reader.readAsText(file);
+
+	reader.onloadend = function () {
+		doc = parser.parseFromString (reader.result, "text/html");
+		try {
+			v.elems["post_title"].value = doc.querySelector("title").textContent.trim();
+			v.elems["post_blurb"].value = doc.querySelector("#blurb").innerHTML.trim();
+			v.elems["post_content"].value = doc.querySelector("body").innerHTML.trim();
+			v.elems["post_categories"].value = extract_keywords(doc.querySelectorAll("head > meta")).trim();
+		} catch (err) {
+			show_dialog (info_dialog ("There was a fatal formatting error in your document."));
+			console.error (err);
+		}
+	};
+}
+
 function post_preview_clicked () {
 	var data = JSON.stringify ({
 		title: v.elems["post_title"].value,
@@ -353,11 +383,11 @@ function post_submit_clicked () {
 			var container = document.createElement ("div");
 			
 			var text = document.createElement ("div");
-			text.innerText = "Post successfully created. You can see it here: ";
+			text.textContent = "Post successfully created. You can see it here: ";
 			
 			var link = document.createElement ("a");
 			link.href = "/posts/" + JSON.parse(this.responseText).id;
-			link.innerText = link.href;
+			link.textContent = link.href;
 			
 			container.appendChild (text);
 			container.appendChild (link);
@@ -376,6 +406,7 @@ function post_submit_clicked () {
 		categories: v.elems["post_categories"].value.split(" "),
 		published: new Date()
 	});
+	
 	if (v.editing === null) {
 		XHR ("POST", "/admin/posts", data, DRY);
 	} else {
@@ -389,11 +420,11 @@ function file_submit_clicked () {
 			var container = document.createElement ("div");
 			
 			var text = document.createElement ("div");
-			text.innerText = "File successfully created. You can see it here: ";
+			text.textContent = "File successfully created. You can see it here: ";
 			
 			var link = document.createElement ("a");
 			link.href = "/static/" + JSON.parse(this.responseText).filename;
-			link.innerText = link.href;
+			link.textContent = link.href;
 			
 			container.appendChild (text);
 			container.appendChild (link);
@@ -472,7 +503,9 @@ function main () {
 		post_author_link: document.querySelector ("#post_author_link"),
 		files_list_link: document.querySelector ("#files_list_link"),
 		file_author_link: document.querySelector ("#file_author_link"),
-
+		
+		post_from_file: document.querySelector ("#post_from_file"),
+		post_from_file_submit: document.querySelector ("#post_from_file_submit"),
 		post_title: document.querySelector ("#post_title"),
 		post_blurb: document.querySelector ("#post_author > #blurb"),
 		post_content: document.querySelector ("#post_author > #content"),
@@ -494,6 +527,7 @@ function main () {
 	v.elems["files_list_link"].onclick = files_list_link_clicked;
 	v.elems["posts_list_link"].onclick = posts_list_link_clicked;
 
+	v.elems["post_from_file_submit"].onclick = load_from_file_clicked;
 	v.elems["post_preview"].onclick = post_preview_clicked;
 	v.elems["post_submit"].onclick = post_submit_clicked;
 	v.elems["file_submit"].onclick = file_submit_clicked;

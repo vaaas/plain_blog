@@ -21,7 +21,7 @@ var conf = {
 		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
 	},
 	dirs: {
-		root: "/usr/local/share/blog",
+		root: "/usr/local/share/plain_blog",
 	},
 };
 
@@ -276,13 +276,7 @@ function request_listener (req, res) {
 
 	switch (pathparts[1]) {
 	case "admin":
-		// private API for the administrator requires proper authentication
-		// password is sent through the "x-password" header
-		if (is_authorised (req.headers["x-password"])) {
-			admin_request_listener (req, res);
-		} else {
-			serve_response (code_response (401, "Not authorised"), res);
-		}
+		admin_request_listener (req, res);
 		break;
 	case "posts":
 		// public api for reading posts
@@ -577,8 +571,15 @@ function admin_preview (data, callback) {
 // if a function is not found, serves empty (404)
 // if a method is not allowed, serves empty (405)
 function admin_request_listener (req, res) {
+	// private API for the administrator requires proper authentication
+	// password is sent through the "x-password" header
+	if (! is_authorised (req.headers["x-password"])) {
+		return serve_response (code_response (401, "Not authorised"), res);
+	}
+
 	// a simple function to help with not repeating oneself
 	function DRY (conf) { serve_response (conf, res); }
+		
 	// parse url and delimit the directories
 	var purl = url.parse (req.url, true);
 	var pathparts = purl.pathname.split ("/");

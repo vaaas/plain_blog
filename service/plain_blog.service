@@ -1,0 +1,16 @@
+[Service]
+ExecStart=/usr/bin/node /usr/local/bin/plain_blog.js
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=plain_blog
+User=node
+Group=node
+Environment=
+
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Requires=postgresql.service
+After=postgresql.service

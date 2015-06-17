@@ -33,6 +33,15 @@ function XHR (method, url, data, callback) {
 		req.send();
 }
 
+function encodeHTML (str) {
+	return String(str)
+		.replace(/&/g, '&amp;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+}
+
 // ----------------------------- RENDER FUNCTIONS ------------------------------
 function render_post_edit (data) {
 	v.elems["post_title"].value = data.title;
@@ -53,14 +62,14 @@ function render_files_list (rows) {
 function render_file_row (parent, data) {
 	var filename = document.createElement("h1");
 	var link = document.createElement("a");
-	link.textContent = data;
+	link.innerHTML = data;
 	link.href = "/static/" + data;
 	filename.appendChild (link);
 	parent.appendChild (filename);
 
 	var delete_button = document.createElement("a");
 	delete_button.href ="#";
-	delete_button.textContent = "DELETE";
+	delete_button.innerHTML = "DELETE";
 	delete_button.onclick = delete_file_clicked (data, parent);
 
 	parent.appendChild (delete_button);
@@ -78,7 +87,7 @@ function render_posts_list (rows) {
 function render_post_row (parent, data) {
 	var title = document.createElement("h1");
 	var title_link = document.createElement("a");
-	title_link.textContent = data.title;
+	title_link.innerHTML = encodeHTML (data.title);
 	title_link.href = "/posts/" + data.id;
 	title.appendChild(title_link);
 	parent.appendChild (title);
@@ -86,18 +95,18 @@ function render_post_row (parent, data) {
 	var container = document.createElement("div");
 
 	var published = document.createElement("span");
-	published.textContent = data.published.slice(0,10);
+	published.innerHTML = encodeHTML (data.published.slice(0,10));
 	container.appendChild (published);
 
 	var edit_button = document.createElement("a");
 	edit_button.href = "#";
-	edit_button.textContent = "EDIT";
+	edit_button.innerHTML = "EDIT";
 	edit_button.onclick = edit_post_clicked (data.id);
 	container.appendChild(edit_button);
 
 	var delete_button = document.createElement("a");
 	delete_button.href = "#";
-	delete_button.textContent = "DELETE";
+	delete_button.innerHTML = "DELETE";
 	delete_button.onclick = delete_post_clicked (data.id, parent);
 	container.appendChild (delete_button);
 
@@ -216,10 +225,10 @@ function error_dialog (text, callback) {
 	var parent = document.createElement ("div");
 	
 	var info = document.createElement ("div");
-	info.textContent = "Something went wrong. Server responded with:";
+	info.innerHTML = "Something went wrong. Server responded with:";
 	
 	var pre = document.createElement ("pre");
-	pre.textContent = text;
+	pre.innerHTML = encodeHTML (text);
 	
 	parent.appendChild (info);
 	parent.appendChild (pre);
@@ -229,7 +238,7 @@ function error_dialog (text, callback) {
 
 function info_dialog (text, callback) {
 	var info = document.createElement ("div");
-	info.textContent = text;
+	info.innerHTML = encodeHTML (text);
 	return dialog (info, callback);
 }
 
@@ -347,7 +356,7 @@ function load_from_file_clicked () {
 	reader.onloadend = function () {
 		doc = parser.parseFromString (reader.result, "text/html");
 		try {
-			v.elems["post_title"].value = doc.querySelector("title").textContent.trim();
+			v.elems["post_title"].value = doc.querySelector("title").innerHTML.trim();
 			v.elems["post_blurb"].value = doc.querySelector("#blurb").innerHTML.trim();
 			v.elems["post_content"].value = doc.querySelector("body").innerHTML.trim();
 			v.elems["post_categories"].value = extract_keywords(doc.querySelectorAll("head > meta")).trim();
@@ -383,18 +392,18 @@ function post_submit_clicked () {
 			var container = document.createElement ("div");
 			
 			var text = document.createElement ("div");
-			text.textContent = "Post successfully created. You can see it here: ";
+			text.innerHTML = "Post successfully created. You can see it here: ";
 			
 			var link = document.createElement ("a");
 			link.href = "/posts/" + JSON.parse(this.responseText).id;
-			link.textContent = link.href;
+			link.innerHTML = link.href;
 			
 			container.appendChild (text);
 			container.appendChild (link);
 			
-			dialog (container, function () {
+			show_dialog(dialog (container, function () {
 				hide_nav ();
-			});
+			}));
 		} else {
 			show_dialog (error_dialog (this.responseText));
 		}
@@ -420,18 +429,18 @@ function file_submit_clicked () {
 			var container = document.createElement ("div");
 			
 			var text = document.createElement ("div");
-			text.textContent = "File successfully created. You can see it here: ";
+			text.innerHTML = "File successfully created. You can see it here: ";
 			
 			var link = document.createElement ("a");
 			link.href = "/static/" + JSON.parse(this.responseText).filename;
-			link.textContent = link.href;
+			link.innerHTML = link.href;
 			
 			container.appendChild (text);
 			container.appendChild (link);
 			
-			dialog (container, function () {
+			show_dialog (dialog (container, function () {
 				hide_nav ();
-			});
+			}));
 		} else {
 			show_dialog (error_dialog (this.responseText));
 		}

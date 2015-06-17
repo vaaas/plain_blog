@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /* jshint -W009 */
 /* jshint -W010 */
 /* jshint -W069 */
@@ -10,25 +11,26 @@ var fs = require("fs");
 var url = require("url");
 var dot = require("dot");
 var pg = require("pg").native;
+var conf = require ("/etc/plain_blog.js");
 
-// configuration object
-var conf = {
-	http: {
-		port: process.env.HTTP_PORT || 50000
-	},
-	auth: process.env.PASSWORD || "password",
-	pg: {
-		constring: process.env.PG_CONSTRING || "postgres://postgres:password@localhost/plain_blog"
-	},
-	dirs: {
-		root: "/usr/local/share/plain_blog",
-	},
-};
-
-// template function
+// template functions
 var template = dot.template (
 	fs.readFileSync (
-		conf.dirs.root + "/template.html",
+		"./template.html",
+		{"encoding": "utf-8"}
+	)
+);
+
+var rss = dot.template (
+	fs.readFileSync (
+		"./rss.xml",
+		{"encoding": "utf-8"}
+	)
+);
+
+var atom = dot.template (
+	fs.readFileSync (
+		"./atom.xml",
 		{"encoding": "utf-8"}
 	)
 );
@@ -215,6 +217,7 @@ function get_posts_collection (query, callback) {
 			code: 200,
 			message: {"Content-type": "text/html"},
 			data: template ({ // render the page
+				blog: conf.blog,
 				type: "collection",
 				category: (query && query.category) ? query.category : null,
 				posts: result.rows
@@ -252,8 +255,54 @@ function get_posts_element (id, callback) {
 			code: 200,
 			message: {"Content-type": "text/html"},
 			data: template ({ // render the page
+				blog: conf.blog,
 				type: "element",
 				post: result.rows[0]
+			})
+		});
+	});
+}
+
+function get_rss_feed (callback) {
+	pg_query ({
+		text: "SELECT id, title, published, blurb FROM POSTS ORDER BY ID DESC;",
+		values: []
+	}, function (err, result) {
+		if (err) {
+			// something went wrong
+			return callback (code_response (500, sane_error (err)));
+		} else if (result.rowCount === 0) {
+			// nothing found
+			return callback (code_response (404));
+		}
+		return callback ({
+			code: 200,
+			message: {"Content-type": "application/rss+xml"},
+			data: rss ({
+				blog: conf.blog,
+				posts: result.rows
+			})
+		});
+	});
+}
+
+function get_atom_feed (callback) {
+	pg_query ({
+		text: "SELECT id, title, published, blurb FROM POSTS ORDER BY ID DESC;",
+		values: []
+	}, function (err, result) {
+		if (err) {
+			// something went wrong
+			return callback (code_response (500, sane_error (err)));
+		} else if (result.rowCount === 0) {
+			return callback (code_response (404));
+		}
+		return callback ({
+			code: 200,
+			message: {"Content-type": "application/atom+xml"},
+			data: atom ({
+				blog: conf.blog,
+				posts: result.rows
 			})
 		});
 	});
@@ -291,6 +340,17 @@ function request_listener (req, res) {
 			// GET /posts
 			// render a list / summary of several posts
 			get_posts_collection (purl.query, DRY);
+		}
+		break;
+	case "feeds":
+		if (req.method !== "GET") {
+			serve_response (code_response (405, "Only GET methods are allowed"));
+		} else if (pathparts [2] === "rss.xml") {
+			get_rss_feed (DRY);
+		} else if (pathparts [2] === "atom.xml") {
+			get_atom_feed (DRY);
+		} else {
+			serve_response (code_response (404), res);
 		}
 		break;
 	default:
@@ -444,7 +504,7 @@ function admin_post_posts_collection (data, callback) {
 			return callback (code_response (500, sane_error (err)));
 		} else {
 			return callback ({
-				code: 200,
+				code: 201,
 				message: {"Content-type": "application/json"},
 				data: JSON.stringify (result.rows[0])
 			});
@@ -458,7 +518,7 @@ function admin_post_posts_collection (data, callback) {
 // on success, serves json (200)
 // on error, serves plain text (500)
 function admin_get_files_collection (callback) {
-	fs.readdir (conf.dirs.root + "/static", function (err, files) {
+	fs.readdir ("./static", function (err, files) {
 		if (err) {
 			return callback (code_response (500, sane_error (err)));
 		} else {
@@ -499,7 +559,7 @@ function admin_post_files_collection (data, callback) {
 	}
 	var fd;
 	try {
-		fd = fs.openSync (conf.dirs.root + "/static/" + obj.name, "w", 288);
+		fd = fs.openSync ("./static/" + obj.name, "w", 288);
 	} catch (err) {
 		return callback (code_response (500, sane_error (err)));
 	}
@@ -527,7 +587,7 @@ function admin_post_files_collection (data, callback) {
 // on success, serves empty (204)
 // on failure, serves plain text (500)
 function admin_delete_files_element (file, callback) {
-	fs.unlink (conf.dirs.root + "/static/" + file, function (err) {
+	fs.unlink ("./static/" + file, function (err) {
 		if (err) {
 			return callback (code_response (500, sane_error(err)));
 		} else {
@@ -556,6 +616,7 @@ function admin_preview (data, callback) {
 			code: 200,
 			message: {"Content-type": "text/html"},
 			data: template ({
+				blog: conf.blog,
 				type: "element",
 				post: obj
 			})

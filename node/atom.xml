@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+	<title>{{=it.blog.title }}</title>
+	<subtitle>{{=it.blog.description }}</subtitle>
+	<link href="{{=it.blog.url + '/feed.atom'}}" rel="self"/>
+	<link href="{{=it.blog.url}}"/>
+	<updated>{{=it.posts[0].published }}</updated>
+	{{~it.posts:post:postid}}
+		<entry>
+			<title>{{=post.title }}</title>
+			<link href="{{= it.blog.url + '/posts/' + post.id}}"/>
+			<updated>{{=post.published}}</updated>
+			<content type="xhtml">
+				{{=post.blurb}}
+			</content>
+		</entry>
+	{{~}}
+</feed>

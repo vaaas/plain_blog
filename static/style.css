@@ -119,6 +119,26 @@ main.element {
 	border-radius: 0.25em;
 }
 
+main.empty {
+	border-radius: 0.25em;
+	max-width: 40em;
+	padding: 10em 1em;
+	text-align: center;
+	background: rgba(0,0,0,0.5);
+	color: white;
+}
+
+main.empty > div {
+	margin: 2em 0;
+}
+
+main.empty a {
+	margin: 0 0.5em;
+	background: white;
+	border-radius: 0.25em;
+	padding: 1em;
+}
+
 article > h1:first-of-type, main.element > h1:first-of-type {
 	text-align: center;
 	font-family: Alfa Slab One, serif;

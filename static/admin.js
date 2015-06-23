@@ -344,7 +344,16 @@ function load_from_file_clicked () {
 				return e[i].content;
 			}
 		}
-		throw "Keywords element not found";
+		throw "Keywords metadata not found";
+	}
+	
+	function extract_date (e) {
+		for (var i = 0, len = e.length; i < len; i++) {
+			if (e[i].name === "date") {
+				return e[i].content;
+			}
+		}
+		throw "Date metadata not found";
 	}
 	
 	var doc;
@@ -360,6 +369,7 @@ function load_from_file_clicked () {
 			v.elems["post_blurb"].value = doc.querySelector("#blurb").innerHTML.trim();
 			v.elems["post_content"].value = doc.querySelector("body").innerHTML.trim();
 			v.elems["post_categories"].value = extract_keywords(doc.querySelectorAll("head > meta")).trim();
+			v.elems["post_date"].value = extract_date (doc.querySelectorAll("head > meta"))
 		} catch (err) {
 			show_dialog (info_dialog ("There was a fatal formatting error in your document."));
 			console.error (err);
@@ -373,7 +383,7 @@ function post_preview_clicked () {
 		blurb: v.elems["post_blurb"].value,
 		contents: v.elems["post_content"].value,
 		categories: v.elems["post_categories"].value.split(" "),
-		published: new Date()
+		published: v.elems["post_date"] ? new Date (v.elems["post_date"]) : new Date()
 	});
 	
 	XHR ("POST", "/admin/preview", data, function () {
@@ -519,6 +529,7 @@ function main () {
 		post_blurb: document.querySelector ("#post_author > #blurb"),
 		post_content: document.querySelector ("#post_author > #content"),
 		post_categories: document.querySelector ("#post_categories"),
+		post_date: document.querySelector ("#post_date"),
 
 		post_submit: document.querySelector ("#post_submit"),
 		post_preview: document.querySelector ("#post_preview"),

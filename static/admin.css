@@ -175,7 +175,6 @@ section.active {
 }
 
 #post_author input[type="text"] {
-	display: block;
 	width: 100%;
 }
 

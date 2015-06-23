@@ -65,6 +65,16 @@
 		{{?}}
 		{{=it.post.contents}}
 	</main>
+
+{{?? it.type === "empty" }}
+	<main class="empty">
+		<h1>Nothing found!</h1>
+		<div>
+			<a href="#" onclick="window.history.back();">Go back</a>
+			<a href="/">Home</a>
+		</div>
+	</main>
+
 {{?}}
 
 </body>

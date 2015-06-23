@@ -210,7 +210,14 @@ function get_posts_collection (query, callback) {
 			return callback (code_response (500, sane_error(err)));
 		} else if (result.rowCount === 0) {
 			// no results
-			return callback (code_response (404));
+			return callback ({
+				code: 404,
+				message: {"Content-type": "text/html"},
+				data: template ({
+					blog: conf.blog,
+					type: "empty"
+				})
+			});
 		}
 		// the response object
 		return callback ({
@@ -248,7 +255,14 @@ function get_posts_element (id, callback) {
 			return callback (code_response (500, sane_error(err)));
 		} else if (result.rowCount === 0) {
 			// post not found
-			return callback (code_response (404));
+			return callback ({
+				code: 404,
+				message: {"Content-type": "text/html"},
+				data: template ({
+					blog: conf.blog,
+					type: "empty"
+				})
+			});
 		}
 		// the response object
 		return callback ({

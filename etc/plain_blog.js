@@ -9,7 +9,7 @@ module.exports = {
 	blog: {
 		title: "Plain blog",
 		description: "Plain blog is very plain",
-		url: "blog.localhost",
+		host: "blog.localhost",
 		keywords: ["plain", "blog", "plain blog"],
 		author: "Plain author"
 	}

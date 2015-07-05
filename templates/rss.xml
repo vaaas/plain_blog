@@ -3,14 +3,15 @@
 <channel>
 	<title>{{= it.blog.title }}</title>
 	<description>{{= it.blog.description }}</description>
-	<link>{{= it.blog.url }}</link>
+	<link>https://{{= it.blog.host }}</link>
 	<lastBuildDate>{{= it.posts[0].published }}</lastBuildDate>
 	<ttl>1440</ttl>
 	{{~it.posts:post:postid}}
 		<item>
 			<title>{{= post.title }}</title>
-			<description>{{= post.blurb }}</description>
-			<link>{{= it.blog.url + '/posts' + post.id }}</link>
+			<description><![CDATA[{{= post.blurb }}]]></description>
+			<link>https://{{= it.blog.host + '/posts' + post.id }}</link>
+			<guid>https://{{= it.blog.host + '/posts' + post.id }}</guid>
 			<pubDate>{{= post.published }}</pubDate>
 		</item>
 	{{~}}

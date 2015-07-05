@@ -28,13 +28,6 @@ var rss = dot.template (
 	)
 );
 
-var atom = dot.template (
-	fs.readFileSync (
-		"./atom.xml",
-		{"encoding": "utf-8"}
-	)
-);
-
 // execute a postgres query
 // queryconf: a node-pg query configuration object
 // callback (err, result): function to call when the query completes

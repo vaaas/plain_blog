@@ -370,7 +370,7 @@ function load_from_file_clicked () {
 			v.elems["post_blurb"].value = doc.querySelector("#blurb").innerHTML.trim();
 			v.elems["post_content"].value = doc.querySelector("body").innerHTML.trim();
 			v.elems["post_categories"].value = extract_keywords(doc.querySelectorAll("head > meta")).trim();
-			v.elems["post_date"].value = extract_date (doc.querySelectorAll("head > meta"))
+			v.elems["post_date"].value = extract_date (doc.querySelectorAll("head > meta"));
 		} catch (err) {
 			show_dialog (info_dialog ("There was a fatal formatting error in your document."));
 			console.error (err);

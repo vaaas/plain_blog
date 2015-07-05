@@ -48,6 +48,7 @@ function render_post_edit (data) {
 	v.elems["post_blurb"].value = data.blurb;
 	v.elems["post_content"].value = data.contents;
 	v.elems["post_categories"].value = data.categories.join(" ");
+	v.elems["post_date"].value = data.published;
 }
 
 function render_files_list (rows) {

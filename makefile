@@ -11,9 +11,9 @@ static:
 	sudo install -m 440 -o node -g node static/* /usr/local/share/plain_blog/static/
 
 blog:
-	sudo install -m 640 -o node -g node node/{template.html,atom.xml,rss.xml} /usr/local/share/plain_blog/
-	sudo install -m 644 -o root -g root node/conf.js /etc/plain_blog.js
-	sudo install -m 555 -o root -g root node/plain_blog.js /usr/local/bin/
+	sudo install -m 555 -o root -g root bin/* /usr/local/bin/
+	sudo install -m 644 -o root -g root etc/* /etc/
+	sudo install -m 640 -o node -g node templates/* /usr/local/share/plain_blog/
 
 service:
 	sudo install -m 644 -o root -g root service/* /usr/lib/systemd/system/

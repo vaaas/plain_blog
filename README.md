@@ -1,13 +1,12 @@
 # Plain blog
 
-A very plain dynamic blog, written in Javascript.
+A very plain flat files dynamic blog, written in Javascript.
 
 ## Dependencies
 
 - node.js
-- postgresql
-- node-pg
 - dot.js
+- cheerio
 
 ## Configuration
 
@@ -16,20 +15,30 @@ The main executable is installed in ```/usr/local/bin```,
 its configuration file in ```/etc/```,
 and shared data in ```/usr/local/share/plain_blog```.
 
-```postgresql/init_db.sql``` will create the required database and tables.
-
 An nginx configuration is provided,
 but **it should not be considered production ready**,
 merely an example.
 Nginx is not a hard dependency, so you can use any web server you like.
 
-Edit ```/etc/plain_blog.js``` to match your web server and postgres setup.
+Edit ```/etc/plain_blog.js``` to match your web server setup and other
+preferences.
 
-The administrator page can be accessed in ```/static/admin.html```.
-By default, ```/admin``` will redirect there for convenience.
+There is no database. Information is extracted by parsing HTML files under
+```/usr/local/share/plain_blog/posts``` and stored in-memory. The parser looks
+out for the following elements:
+
+- The first ```h1``` element, for the title.
+- The section with id ```blurb``` for the summary / introduction.
+- The contents of the ```body``` element are considered the post's contents.
+- The ```meta``` keywords element for the post's categories / tags.
+- The ```meta``` date element for the post's creation date.
+
+Posts are sorted in reverse alphabetical order based on their file names.
+Updating the cache is currently only possibly through restarting the process.
+
+A systemd service is provided under ```service```.
 
 ### Non-nginx servers
 
 All requests should be forwarded to node.js, which listens to port ```50000```,
 except for requests in the ```/static/``` subdirectory.
-It's also a good idea to redirect ```/admin``` to ```/static/admin.html```.

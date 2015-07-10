@@ -281,9 +281,13 @@ function init_server () {
 // no arguments
 // returns nothing
 function main () {
+	console.log ("Parsing files.");
 	init_data();
+	console.log ("Compiling templates.");
 	init_templates();
+	console.log ("Starting the server.");
 	init_server();
+	console.log ("Listening to 127.0.0.1:"+conf.http.port);
 }
 
 // let's get going!

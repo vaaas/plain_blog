@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<meta charset="utf-8">
-	<meta name="generator" content="Plain blog">
+	<meta charset="utf-8"/>
+	<meta name="generator" content="Plain blog"/>
+	<meta name="description" content="{{= it.blog.description }}"/>
+	<meta name="author" content="{{= it.blog.author }}"/>
+	<link rel="stylesheet" href="/static/style.css"/>
+	<link rel="alternate" type="application/rss+xml" href="/feeds/rss.xml"/>
+	<link rel="icon" type="image/png" href="/static/favicon.png"/>
+{{? it.type === "element"}}
+	<title>{{= it.blog.title + " - " + it.post.title }}</title>
+	<meta name="keywords" content="{{= it.blog.keywords.concat(it.post.categories).join(', ') }}"/>
+{{??}}
 	<title>{{= it.blog.title }}</title>
-	<meta name="description" content="{{= it.blog.description }}">
-	<meta name="keywords" content="{{= it.blog.keywords.join(', ') }}">
-	<meta name="author" content="{{= it.blog.author }}">
-	<link rel="stylesheet" href="/static/style.css">
-	<link rel="alternate" type="application/rss+xml" href="/feeds/rss.xml">
-	<link rel="alternate" type="application/atom+xml" href="/feeds/atom.xml">
-	<link rel="icon" type="image/png" href="/static/favicon.png">
+	<meta name="keywords" content="{{= it.blog.keywords.join(', ') }}"/>
+{{?}}
 </head>
 <body>
 <header>
@@ -23,11 +27,13 @@
 	<main class="collection">
 		{{~it.posts:post:postid}}
 		{{
-			var d = new Date (post.published);
+			var d = new Date (post.date);
 			d = d.getDate() + "-" + d.getMonth() + "-" + d.getFullYear();
 		}}
 		<article class="card">
-			<h1><a href="/posts/{{=post.id}}">{{=post.title}}</a></h1>
+			<h1><a href="/posts/{{=post.name}}">{{=post.title}}</a></h1>
+			{{=post.blurb}}
+			<a class="card readmore" href="/posts/{{=post.name}}">Read more</a>
 			<div class="published">Posted on {{=d}}</div>
 			{{? post.categories}}
 				<div class="categories">
@@ -37,23 +43,21 @@
 					{{~}}
 				</div>
 			{{?}}
-			{{=post.blurb}}
-			<a class="card readmore" href="/posts/{{=post.id}}">Read more</a>
 		</article>
 		{{~}}
 	</main>
 	<nav>
-		<a class="card" id="prev" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}after={{=it.posts[0].id}}">←</a>
-		<a class="card" id="next" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}before={{=it.posts[it.posts.length-1].id}}">→</a>
+		<a class="card" id="next" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}newer={{=it.posts[0].id}}">←</a>
+		<a class="card" id="prev" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}older={{=it.posts[it.posts.length-1].id}}">→</a>
 	</nav>
 
 {{?? it.type === "element"}}
 	{{
-		var d = new Date (it.post.published);
+		var d = new Date (it.post.date);
 		d = d.getDate() + "-" + d.getMonth() + "-" + d.getFullYear();
 	}}
 	<main class="element">
-		<h1><a href="/posts/{{=it.post.id}}">{{=it.post.title}}</a></h1>
+		{{=it.post.content}}
 		<div class="published">Posted on {{=d}}</div>
 		{{? it.post.categories}}
 			<div class="categories">
@@ -63,7 +67,6 @@
 				{{~}}
 			</div>
 		{{?}}
-		{{=it.post.contents}}
 	</main>
 
 {{?? it.type === "empty" }}

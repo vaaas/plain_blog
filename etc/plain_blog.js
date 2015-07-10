@@ -11,6 +11,7 @@ module.exports = {
 		description: "Plain blog is very plain",
 		host: "blog.localhost",
 		keywords: ["plain", "blog", "plain blog"],
-		author: "Plain author"
+		author: "Plain author",
+		posts_per_page: 10
 	}
 };

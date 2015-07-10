@@ -4,14 +4,14 @@
 	<title>{{= it.blog.title }}</title>
 	<description>{{= it.blog.description }}</description>
 	<link>https://{{= it.blog.host }}</link>
-	<lastBuildDate>{{= it.posts[0].published }}</lastBuildDate>
+	<lastBuildDate>{{= it.posts[0].date }}</lastBuildDate>
 	<ttl>1440</ttl>
 	{{~it.posts:post:postid}}
 		<item>
 			<title>{{= post.title }}</title>
 			<description><![CDATA[{{= post.blurb }}]]></description>
-			<link>https://{{= it.blog.host + '/posts' + post.id }}</link>
-			<guid>https://{{= it.blog.host + '/posts' + post.id }}</guid>
+			<link>https://{{= it.blog.host + "/posts/" + post.name }}</link>
+			<guid>https://{{= it.blog.host + "/posts/" + post.name }}</guid>
 			<pubDate>{{= post.published }}</pubDate>
 		</item>
 	{{~}}

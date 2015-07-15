@@ -12,10 +12,26 @@ var url = require("url");
 var dot = require("dot");
 var cheerio = require("cheerio");
 var conf = require("/etc/plain_blog.js");
-var template, rss, data;
+var template, rss, data; // global variables
 
+// check whether a number is an integer
+// n: the number
+// returns bool
 function isInt (n) {
 	return n % 1 === 0;
+}
+
+// transforms an array into an object
+// the array's index becomes the object's value, and the array's value becomes
+// the object's key
+// arr: the array
+// returns object
+function array_to_object (arr) {
+	var obj = new Object();
+	for (var i = 0, len = arr.length; i < len; i++) {
+		obj[arr[i].name] = i;
+	}
+	return obj;
 }
 
 // create a very simple response configuration object
@@ -38,6 +54,10 @@ function serve_response (conf, res) {
 	res.end (conf.data);
 }
 
+// run a query on the data
+// query: a URI query
+// callback (results): function to call when results are acquired
+// returns nothing
 function execute_query (query, callback) {
 	var results = new Array();
 	var counter = conf.blog.posts_per_page;
@@ -67,10 +87,10 @@ function execute_query (query, callback) {
 
 	while (counter > 0 && i >= 0 && i < data.length) {
 		if (query.category) {
-			clause = clause && data[data.posts[i]].categories.indexOf (query.category) == -1 ? false : true;
+			clause = clause && data.posts[i].categories.indexOf (query.category)=== -1 ? false : true;
 		}
 		if (clause) {
-			results.push (data[data.posts[i]]);
+			results.push (data.posts[i]);
 			counter -= 1;
 		}
 		if (rev) {
@@ -117,22 +137,21 @@ function get_posts_collection (query, callback) {
 	});
 }
 
-// render the page for GET /posts/postid
-// id: the post id
+// render the page for GET /posts/post
+// name: the post file name
 // callback (res_conf): the function to call when the response is ready
 // returns nothing
 // on success, serves HTML content (200)
-// if query is invalid, serves plain text (400)
-// if something goes wrong with the query, serves plain text (500)
+// if nothing is found, serves HTML content (404)
 function get_posts_element (name, callback) {
-	if (data[name]) {
+	if (data.keys[name] !== undefined) {
 		return callback ({
 			code: 200,
 			message: {"Content-type": "text/html"},
 			data: template ({ // render the page
 				blog: conf.blog,
 				type: "element",
-				post: data[name]
+				post: data.posts[data.keys[name]]
 			})
 		});
 	} else {
@@ -147,10 +166,15 @@ function get_posts_element (name, callback) {
 	}
 }
 
+// render the page for GET /feeds/rss.xml
+// callback (res_conf): the function to call when the resposne is ready
+// returns nothing
+// on success, serves RSS+XML content (200)
+// if nothing is found, serves plain text (404)
 function get_rss_feed (callback) {
 	var results = new Array();
 	for (var i = 0; i < data.length && i < conf.blog.posts_per_page; i++) {
-		results.push (data[data.posts[i]]);
+		results.push (data.posts[i]);
 	}
 	if (results.length === 0) {
 		// nothing found
@@ -213,48 +237,119 @@ function request_listener (req, res) {
 	}
 }
 
+// listens to SIGHUP
+// reconfigures the server
+// no arguments
+// returns nothing
+function HUP_listener () {
+	conf = require("/etc/plain_blog.js");
+	init_templates();
+	update_data();
+}
+
+// extract information from a HTML file
+// file: the file path as string
+// returns object
+function extract_data (file) {
+	var $ = cheerio.load (
+		fs.readFileSync (
+			"./posts/" + file,
+			{ "encoding" : "utf-8" }
+		)
+	);
+	var data = new Object();
+	data.name = file;
+	data.mtime = fs.statSync("./posts/" + file).mtime;
+	data.title = $("h1:first-of-type").html().trim();
+	data.blurb = $("#blurb").html().trim();
+	data.content = $("body").html().trim();
+
+	var meta = $("meta");
+	var keys = Object.keys (meta);
+	for (var i = 0, len = keys.length; i < len; i++) {
+		if (!meta[keys[i]].attribs) {
+			continue;
+		}
+		switch (meta[keys[i]].attribs.name) {
+		case "date":
+			data.date = new Date (meta[keys[i]].attribs.content);
+			break;
+		case "keywords":
+			data.categories = meta[keys[i]].attribs.content.split(", ");
+			break;
+		default:
+			break;
+		}
+	}
+	return data;
+}
+
+// initialise data.posts
+// posts: an array of pathnames as strings
+// returns an array of objects
+function init_posts_array (posts) {
+	var arr = new Array();
+	for (var i = 0, len = posts.length; i < len; i++) {
+		arr.push (extract_data (posts[i]));
+		arr[i].id = i;
+	}
+	return arr;
+}
+
+// initialise the database
+// no arguments
+// returns nothing
 function init_data () {
 	var posts = fs.readdirSync ("./posts");
 	posts.sort();
 	posts.reverse();
 	data = new Object ();
-	data.posts = posts;
-	data.length = posts.length;
-	for (var i = 0, len = posts.length; i < len; i++) {
-		data[posts[i]] = new Object();
-		var $ = cheerio.load (
-			fs.readFileSync (
-				"./posts/" + posts[i],
-				{ "encoding" : "utf-8" }
-			)
-		);
-		data[posts[i]].name = posts[i];
-		data[posts[i]].id = i;
-		data[posts[i]].title = $("h1:first-of-type").html().trim();
-		data[posts[i]].blurb = $("#blurb").html().trim();
-		data[posts[i]].content = $("body").html().trim();
-
-		var meta = $("meta");
-		var keys = Object.keys (meta);
-		for (var j = 0, len2 = keys.length; j < len2; j++) {
-			if (!meta[keys[j]].attribs) {
-				continue;
-			}
-			switch (meta[keys[j]].attribs.name) {
-			case "date":
-				data[posts[i]].date = new Date (meta[keys[j]].attribs.content);
-				break;
-			case "keywords":
-				data[posts[i]].categories = meta[keys[j]].attribs.content.split(", ");
-				break;
-			default:
-				continue;
-				break;
-			}
-		}
-	}
+	data.posts = init_posts_array (posts);
+	data.keys = array_to_object (data.posts);
+	data.length = data.posts.length;
 }
 
+// update the database
+// no arguments
+// returns nothing
+function update_data () {
+	var posts = fs.readdirSync ("./posts");
+	var hash = array_to_object (posts);
+	posts.sort();
+	posts.reverse();
+	// remove files that no longer exist from the database
+	for (var i = 0, len = data.length; i < len; i++) {
+		if (hash[data.posts[i].name] === undefined) {
+			data.posts.splice (i, 1);
+		}
+	}
+	// add files that don't exist in the database to the database
+	// additionally, update files that were modified
+	for (i = 0, len = posts.length; i < len; i++) {
+		if (data.keys[posts[i]] === undefined) {
+			data.posts.push (extract_data (posts[i]));
+		} else if (fs.statSync(posts[i]).mtime > data.posts[data.keys[posts[i]]].mtime) {
+			data.posts[data.keys[posts[i]]] = extract_data(posts[i]);
+		}
+	}
+	data.posts.sort (function (a, b) {
+		if (a.name < b.name)
+			return -1;
+		else if (a.name > b.name)
+			return 1;
+		else
+			return 0;
+	});
+	data.posts.reverse();
+	data.length = data.posts.length;
+	for (i = 0; i < data.length; i++)
+		data.posts[i].id = i;
+	data.keys = array_to_object (data.posts);
+}
+
+// compile the templates
+// no arguments
+// returns nothing
 function init_templates () {
 	template = dot.template (
 		fs.readFileSync (
@@ -271,23 +366,38 @@ function init_templates () {
 	);
 }
 
+// start the http server
+// no arguments
+// returns nothing
 function init_server () {
 	var server = http.createServer();
 	server.on ("request", request_listener);
 	server.listen (conf.http.port, "127.0.0.1");
 }
 
+// listen to signals
+// no arguments
+// returns nothing
+function init_process () {
+	process.on ("SIGHUP", HUP_listener);
+}
+
 // main function
+// gets things going
 // no arguments
 // returns nothing
 function main () {
 	console.log ("Parsing files.");
 	init_data();
+
 	console.log ("Compiling templates.");
 	init_templates();
+
 	console.log ("Starting the server.");
 	init_server();
 	console.log ("Listening to 127.0.0.1:"+conf.http.port);
+
+	init_process();
 }
 
 // let's get going!

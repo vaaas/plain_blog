@@ -34,7 +34,8 @@ out for the following elements:
 - The ```meta``` date element for the post's creation date.
 
 Posts are sorted in reverse alphabetical order based on their file names.
-Updating the cache is currently only possibly through restarting the process.
+Updating the cache is done by sending the HUP signal (or the reload systemctl
+command).
 
 A systemd service is provided under ```service```.
 

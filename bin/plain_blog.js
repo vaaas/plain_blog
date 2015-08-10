@@ -273,9 +273,7 @@ function get_rss_feed (callback) {
 
 // serve a static file
 function get_static_element (path, callback) {
-	if (path [0] === "/") {
-		path = "." + path;
-	}
+	path = conf.fs.dir + path;
 	fs.exists (path, function (exists) {
 		if (!exists) {
 			return callback (code_response (404, "Element doesn't exist"));
@@ -368,13 +366,13 @@ function HUP_listener () {
 function extract_data (file) {
 	var $ = cheerio.load (
 		fs.readFileSync (
-			"./posts/" + file,
+			conf.fs.dir + "/posts/" + file,
 			{ "encoding" : "utf-8" }
 		)
 	);
 	var data = new Object();
 	data.name = file;
-	data.mtime = fs.statSync("./posts/" + file).mtime;
+	data.mtime = fs.statSync(conf.fs.dir + "/posts/" + file).mtime;
 	data.title = $("h1:first-of-type").html().trim();
 	data.blurb = $("#blurb").html().trim();
 	data.content = $("body").html().trim();
@@ -415,7 +413,7 @@ function init_posts_array (posts) {
 // no arguments
 // returns nothing
 function init_data () {
-	var posts = fs.readdirSync ("./posts");
+	var posts = fs.readdirSync (conf.fs.dir + "/posts");
 	posts.sort();
 	posts.reverse();
 	data = new Object ();
@@ -428,7 +426,7 @@ function init_data () {
 // no arguments
 // returns nothing
 function update_data () {
-	var posts = fs.readdirSync ("./posts");
+	var posts = fs.readdirSync (conf.fs.dir + "/posts");
 	var hash = array_to_object (posts);
 	posts.sort();
 	posts.reverse();
@@ -443,7 +441,8 @@ function update_data () {
 	for (i = 0, len = posts.length; i < len; i++) {
 		if (data.keys[posts[i]] === undefined) {
 			data.posts.push (extract_data (posts[i]));
-		} else if (fs.statSync(posts[i]).mtime > data.posts[data.keys[posts[i]]].mtime) {
+		} else if (fs.statSync(conf.fs.dir + "/posts/" + posts[i]).mtime >
+			data.posts[data.keys[posts[i]]].mtime) {
 			data.posts[data.keys[posts[i]]] = extract_data(posts[i]);
 		}
 	}
@@ -468,14 +467,14 @@ function update_data () {
 function init_templates () {
 	template = dot.template (
 		fs.readFileSync (
-			"./template.html",
+			conf.fs.dir + "/template.html",
 			{"encoding": "utf-8"}
 		)
 	);
 
 	rss = dot.template (
 		fs.readFileSync (
-			"./rss.xml",
+			conf.fs.dir + "/rss.xml",
 			{"encoding": "utf-8"}
 		)
 	);
@@ -500,7 +499,7 @@ function init () {
 function main () {
 	init();
 	process.on ("SIGHUP", HUP_listener);
-	http.createServer(request_listener).listen (80, conf.blog.host);
+	http.createServer(request_listener).listen (conf.http.port, conf.blog.host);
 }
 
 if (require.main === module) {

@@ -1,4 +1,4 @@
-all: dirs static blog service
+all: dirs static blog
 
 dirs:
 	sudo mkdir -p /usr/local/share/plain_blog/ \
@@ -14,7 +14,4 @@ blog:
 	sudo install -m 644 -o root -g root etc/* /etc/;
 	sudo install -m 640 -o node -g node templates/* /usr/local/share/plain_blog/;
 
-service:
-	sudo install -m 644 -o root -g root service/* /usr/lib/systemd/system/
-
-.PHONY: blog static nginx dirs service all
+.PHONY: blog static dirs all

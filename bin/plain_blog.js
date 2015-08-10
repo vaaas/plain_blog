@@ -10,9 +10,64 @@ var http = require("http");
 var fs = require("fs");
 var url = require("url");
 var dot = require("dot");
+var zlib = require("zlib");
 var cheerio = require("cheerio");
 var conf = require("/etc/plain_blog.js");
 var template, rss, data; // global variables
+
+var mime_types = {
+	".html": "text/html",
+	".htm": "text/html",
+	".css": "text/css",
+	".xml": "text/xml",
+	".txt": "text/plain",
+
+	".gif": "image/gif",
+	".jpeg": "image/jpeg",
+	".jpg": "image/jpeg",
+	".png": "image/png",
+	".ico": "image/x-icon",
+	".bmp": "image/x-ms-bmp",
+	".svg": "image/svg+xml",
+	".svgz": "image/svg+xml",
+	".webp": "image/webp",
+
+	".js": "application/javascript",
+	".atom": "application/atom+xml",
+	".rss": "application/rss+xml",
+	".json": "application/json",
+	".woff": "application/font-woff",
+	".jar": "application/java-archive",
+	".war": "applicaiton/java-archive",
+	".ear": "applicaiton/java-archive",
+	".doc": "application/msword",
+	".pdf": "application/pdf",
+	".rtf": "application/rtf",
+	".xls": "application/vnd.ms-excel",
+	".ppt": "application/vnd.ms-powerpoint",
+	".xhtml": "application/xhtml+xml",
+	".7z": "application/x-7z-compressed",
+	".zip": "application/zip",
+	".rar": "application/x-rar-compressed",
+
+	".mp3": "audio/mpeg",
+	".ogg": "audio/ogg",
+	".oga": "audio/ogg",
+	".m4a": "audio/x-m4a",
+	".aac": "audio/x-m4a",
+
+	".webm": "video/webm",
+	".mp4": "video/mp4",
+	".mkv": "video/x-matroska",
+	".flv": "video/x-flv",
+	".avi": "video/x-msvideo",
+	".mpg": "video/mpeg",
+	".mpeg": "video/mpeg",
+	".wmv": "video/x-ms-wmv",
+	".mov": "video/quicktime",
+	".3gp": "video/3gpp",
+	".3gpp": "video/3gpp",
+};
 
 // check whether a number is an integer
 // n: the number
@@ -51,7 +106,29 @@ function code_response (num, msg) {
 // returns nothing
 function serve_response (conf, res) {
 	res.writeHead (conf.code, conf.message, conf.headers);
-	res.end (conf.data);
+
+	if (conf.data.constructor === fs.ReadStream) {
+		conf.data.on ("data", function (chunk) {
+			res.write (chunk);
+		});
+		conf.data.on ("end", function () {
+			res.end();
+		});
+	} else {
+		res.end (conf.data);
+	}
+}
+
+// return the mime type of a file
+// path: path to the file
+// returns string
+function determine_mime_type (path) {
+	var index = path.slice (path.lastIndexOf ("."));
+	if (index in mime_types) {
+		return mime_types [index];
+	} else {
+		return "application/octet_stream";
+	}
 }
 
 // run a query on the data
@@ -112,6 +189,9 @@ function execute_query (query, callback) {
 // on success, serves HTML content (200)
 // if nothing is found, serves empty (404)
 function get_posts_collection (query, callback) {
+	if (!query || query.constructor !== Object) {
+		query = new Object();
+	}
 	execute_query (query, function (results) {
 		if (results.length > 0) {
 			return callback ({
@@ -191,6 +271,23 @@ function get_rss_feed (callback) {
 	}
 }
 
+// serve a static file
+function get_static_element (path, callback) {
+	if (path [0] === "/") {
+		path = "." + path;
+	}
+	fs.exists (path, function (exists) {
+		if (!exists) {
+			return callback (code_response (404, "Element doesn't exist"));
+		}
+		return callback({
+			code: 200,
+			message: { "Content-type": determine_mime_type (path) },
+			data: fs.createReadStream (path)
+		});
+	});
+}
+
 // main http listener function
 // wait for requests and handle them appropriately
 // req: node.js http request object
@@ -207,6 +304,24 @@ function request_listener (req, res) {
 	var pathparts = purl.pathname.split ("/");
 
 	switch (pathparts[1]) {
+	case "":
+		// same as GET /posts
+
+		if (req.method !== "GET") {
+			serve_response (code_response (405, "Only GET methods allowed"), res);
+		} else {
+			get_posts_collection (null, DRY);
+		}
+	case "static":
+		// serve static files
+		if (req.method !== "GET") {
+			serve_response (code_response (405, "Only GET methods allowed"), res);
+		} else if (!pathparts[2]) {
+			serve_response (code_response (404, "Element doesn't exist"), res);
+		} else {
+			get_static_element (purl.pathname, DRY);
+		}
+		break;
 	case "posts":
 		// public api for reading posts
 		if (req.method !== "GET") {
@@ -366,15 +481,6 @@ function init_templates () {
 	);
 }
 
-// start the http server
-// no arguments
-// returns nothing
-function init_server () {
-	var server = http.createServer();
-	server.on ("request", request_listener);
-	server.listen (conf.http.port, "127.0.0.1");
-}
-
 // listen to signals
 // no arguments
 // returns nothing
@@ -382,23 +488,27 @@ function init_process () {
 	process.on ("SIGHUP", HUP_listener);
 }
 
-// main function
-// gets things going
-// no arguments
-// returns nothing
-function main () {
+function init () {
 	console.log ("Parsing files.");
 	init_data();
-
 	console.log ("Compiling templates.");
 	init_templates();
-
-	console.log ("Starting the server.");
-	init_server();
-	console.log ("Listening to 127.0.0.1:"+conf.http.port);
-
 	init_process();
 }
 
-// let's get going!
-main();
+
+function main () {
+	init();
+	process.on ("SIGHUP", HUP_listener);
+	http.createServer(request_listener).listen (80, conf.blog.host);
+}
+
+if (require.main === module) {
+	main();
+} else {
+	module.exports = {
+		init: init,
+		HUP_listener: HUP_listener,
+		request_listener: request_listener
+	}
+}

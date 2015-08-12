@@ -31,9 +31,9 @@
 			d = d.getDate() + "-" + d.getMonth() + "-" + d.getFullYear();
 		}}
 		<article class="card">
-			<h1><a href="/posts/{{=post.name}}">{{=post.title}}</a></h1>
+			<h1><a href="/posts/{{=post.pathname}}">{{=post.title}}</a></h1>
 			{{=post.blurb}}
-			<a class="card readmore" href="/posts/{{=post.name}}">Read more</a>
+			<a class="card readmore" href="/posts/{{=post.pathname}}">Read more</a>
 			<div class="published">Posted on {{=d}}</div>
 			{{? post.categories}}
 				<div class="categories">

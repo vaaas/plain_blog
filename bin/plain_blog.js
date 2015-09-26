@@ -93,17 +93,19 @@ Number.prototype.isInteger = function isInteger () {
 	return this % 1 === 0;
 };
 
+// a blog entry
 function Post (pathname) {
 	this.__init__(pathname);
 }
 
+// sync internal state to file
 Post.prototype.update = function update () {
 	this.__init__(this.pathname);
 };
 
+// extract information from a HTML file
+// file: the file path as string
 Post.prototype.__init__ = function __init__ (file) {
-	// extract information from a HTML file
-	// file: the file path as string
 	var $ = cheerio.load (fs.readFileSync (file, {"encoding":"utf-8"}));
 	this.pathname = file;
 	this.mtime = fs.statSync(this.pathname).mtime;
@@ -127,14 +129,15 @@ Post.prototype.__init__ = function __init__ (file) {
 	}
 };
 
+// a data structure holding all the blog posts & metadata
 function DB (pathname) {
 	this.pathname = pathname;
-	var posts = fs.readdirSync (this.pathname);
+	var posts = fs.readdirSync(this.pathname);
 	this.posts = new Object ();
 	for (var i = 0, len = posts.length; i < len; i++) {
 		this.posts[posts[i]] = new Post(this.pathname + "/" + posts[i]);
 	}
-	this.sorted = Object.keys (this.posts);
+	this.sorted = Object.keys(this.posts);
 	this.sorted.sort();
 	this.sorted.reverse();
 	this.length = this.sorted.length;
@@ -143,6 +146,7 @@ function DB (pathname) {
 	}
 }
 
+// reload the files
 DB.prototype.update = function update () {
 	var posts = fs.readdirSync (this.pathname + "/posts");
 	var hash = new Object();
@@ -159,7 +163,7 @@ DB.prototype.update = function update () {
 	// additionally, update files that were modified
 	for (i = 0, len = posts.length; i < len; i++) {
 		if (!(posts[i] in this.posts)) {
-			this.posts[posts[i]] = new Post (this.pathname + "/" + posts[i]);
+			this.posts[posts[i]] = new Post(this.pathname + "/" + posts[i]);
 		} else if (
 			fs.statSync (this.pathname + "/posts/" + posts[i]).mtime >
 			this.posts[posts[i]].mtime
@@ -173,10 +177,10 @@ DB.prototype.update = function update () {
 	}
 };
 
+// run a query on the data
+// query: a URI query
+// callback (results): function to call when results are acquired
 DB.prototype.query = function query (q, callback) {
-	// run a query on the data
-	// query: a URI query
-	// callback (results): function to call when results are acquired
 	if (!(q) || typeof q !== "object") {
 		q = new Object();
 	}
@@ -225,6 +229,17 @@ DB.prototype.query = function query (q, callback) {
 	callback (null, results);
 };
 
+// return whether post exists in database
+DB.prototype.exists = function exists(post) {
+	return (post in this.posts);
+}
+
+// get post from database
+DB.prototype.get = function get (post) {
+	return (this.posts[post]);
+}
+
+// array[index] = val → object[val] = true
 function array_val_flags (arr) {
 	var obj = new Object();
 	for (var i = 0, len = arr.length; i < len; i++) {
@@ -297,14 +312,14 @@ function get_posts_collection (query, callback) {
 // on success, serves HTML content (200)
 // if nothing is found, serves HTML content (404)
 function get_posts_element (name, callback) {
-	if (name in data.posts) {
+	if (data.exists(name)) {
 		return callback ({
 			code: 200,
 			message: {"Content-type": "text/html"},
 			data: template ({ // render the page
 				blog: conf.blog,
 				type: "element",
-				post: data.posts[name]
+				post: data.get(name)
 			})
 		});
 	} else {
@@ -325,14 +340,11 @@ function get_posts_element (name, callback) {
 // on success, serves RSS+XML content (200)
 // if nothing is found, serves plain text (404)
 function get_rss_feed (callback) {
-	var results = new Array();
-	for (var i = 0; i < data.length && i < conf.blog.posts_per_page; i++) {
-		results.push (data.posts[data.sorted[i]]);
-	}
-	if (results.length === 0) {
-		// nothing found
-		return callback (code_response (404));
-	} else {
+	DB.query(null, function (results) {
+		if (results.length === 0) {
+			// nothing found
+			return callback (code_response (404));
+		}
 		return callback ({
 			code: 200,
 			message: {"Content-type": "application/rss+xml"},
@@ -342,7 +354,7 @@ function get_rss_feed (callback) {
 				posts: results
 			})
 		});
-	}
+	});
 }
 
 // serve a static file
@@ -457,6 +469,7 @@ function init_server () {
 	http.createServer(request_listener).listen (conf.http.port, conf.http.host);
 }
 
+// gets things going
 function main () {
 	console.log ("Parsing files.");
 	data = new DB (conf.fs.dir + "/posts");

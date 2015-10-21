@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Admin page</title>
+
+	<link rel="stylesheet" type="text/css" href="/static/admin.css">
+	<link rel="icon" type="image/png" href="/static/favicon.png">
+	<script src="/static/admin.js" type="text/javascript"></script>
+</head>
+
+<body>
+	<div id="progressbar"></div>
+	<div id="backdrop"></div>
+	<div id="dialog"></div>
+	
+	<header>Admin page</header>
+
+	<nav>
+		<a href="#" id="posts_list_link">Manage posts</a>
+		<a href="#" id="post_author_link">Create post</a>
+		<a href="#" id="files_list_link">Manage files</a>
+		<a href="#" id="file_author_link">Upload files</a>
+	</nav>
+
+	<main>
+		<section id="posts_list">
+		</section>
+
+		<section id="post_author">
+			<div class="load_container">
+				<input id="post_from_file" type="file">
+				<input id="post_from_file_submit" class="accent" type="submit" value="LOAD FROM FILE">
+			</div>
+			
+			<label for="post_title">Post title</label>
+			<input id="post_title" type="text" placeholder="Post title">
+
+			<label for="blurb">Blurb</label>
+			<textarea id="blurb" placeholder="Blurb"></textarea>
+
+			<label for="content">Content</label>
+			<textarea id="content" placeholder="Main content"></textarea>
+
+			<label for="post_categories">Post categories</label>
+			<input id="post_categories" type="text" placeholder="Post categories, separated by spaces">
+
+			<label for="post_date">Post date</label>
+			<input id="post_date" type="text" placeholder="Date (YYYY-MM-DD) (empty means now)">
+
+			<div class="input_container">
+				<input id="post_preview" type="submit" value="PREVIEW">
+				<input id="post_submit" class="accent" type="submit" value="SUBMIT">
+			</div>
+		</section>
+
+		<section id="files_list">
+		</section>
+
+		<section id="file_author">
+			<input type="file">
+			<input type="submit" class="accent" value="UPLOAD">
+		</section>
+	</main>
+</body>
+</html>

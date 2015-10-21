@@ -1,0 +1,240 @@
+body {
+	padding: 0;
+	margin: auto;
+	max-width: 50em;
+	font-family: sans-serif;
+	background-color: #F5F5F5;
+	color: #FFFFFF;
+	line-height: 1.5em;
+	font-size: 10pt;
+}
+
+body > header {
+	background-color: #F44336;
+	font-size: 200%;
+	text-align: center;
+	padding: 0.5em;
+}
+
+a {
+	color: #3F51B5;
+	text-decoration: none;
+}
+
+a:hover { text-decoration: underline; }
+
+label { color: black; }
+
+h1 > a { color: inherit; }
+
+li > h1 {
+	padding: 0;
+	margin: 0;
+}
+
+form {
+	padding: 0;
+	margin: 0;
+}
+
+input, textarea {
+	box-sizing: border-box;
+	border-radius: 0.2em;
+}
+
+input[type="text"], input[type="password"], textarea {
+	padding: 0.5em;
+	margin: 0.5em 0;
+	border: none;
+	box-shadow: 0 0.1em 0.2em rgba(0,0,0,0.33);
+	transition: box-shadow 0.5s ease;
+}
+
+input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
+	outline: none;
+	box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
+	transition: box-shadow 0.5s ease;
+}
+
+input[type="file"] {
+	color: black;
+}
+
+input[type="submit"] {
+	width: 10em;
+	padding: 0.5em;
+	background-color: #E0E0E0;
+	color: #000000;
+	border: none;
+	box-shadow: 0 0.1em 0.2em rgba(0,0,0,0.33);
+	transition: box-shadow 0.5s ease;
+}
+
+input[type="submit"]:hover, input[type="submit"]:focus {
+	outline: none;
+	box-shadow: 0 0.3em 0.6em rgba(0,0,0,0.33);
+	transition: box-shadow 0.5s ease;
+}
+
+input[type="submit"]:active {
+	box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
+	transition: box-shadow 0.05s ease;
+}
+
+input[type="submit"].accent {
+	background-color: #2979FF;
+	color: #FFFFFF;
+}
+
+input[type="submit"].plain:hover, input[type="submit"].plain:focus {
+	text-decoration: underline;
+}
+
+textarea {
+	min-height: 10em;
+}
+
+nav {
+	background-color: #F44336;
+	text-align: center;
+	padding-bottom: 1em;
+	margin-bottom: 1em;
+}
+
+nav > a {
+	margin: 0 1em;
+	color: #FFFFFF;
+	opacity: 0.7;
+}
+
+nav > a.active {
+	font-weight: bold;
+	opacity: 1.0;
+}
+
+section {
+	display: none;
+}
+
+section.active {
+	display: block;
+}
+
+#backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: black;
+	opacity: 0;
+	display: none;
+	z-index: 999;
+	transition: opacity 0.2s ease;
+}
+
+#backdrop.end {
+	opacity: 0.5;
+	transition: opacity 0.2s ease;
+}
+
+#dialog {
+	display: none;
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) scale(0.8);
+	max-width: 50em;
+	max-height: 20em;
+	background: white;
+	color: black;
+	border-radius: 0.2em;
+	box-shadow: 0 0.5em 1em rgba(0,0,0,0.33);
+	padding: 1em;
+	z-index: 1000;
+	opacity: 0;
+	transition: opacity 0.2s ease, transform 0.2s ease;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+#dialog.end {
+	opacity: 1;
+	transform: translate(-50%, -50%) scale(1);
+	transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#progressbar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 0.2em;
+	width: 0;
+	background-color: #2979FF;
+	display: none;
+	transition: width 0.5s ease;
+	z-index: 1000;
+}
+
+#post_author input[type="text"] {
+	width: 100%;
+}
+
+#post_author textarea {
+	width: 100%;
+}
+
+#posts_list, #files_list {
+	list-style: none;
+	padding: 1em;
+	background: white;
+	color: black;
+	border-radius: 0.2em;
+}
+
+#posts_list > li, #files_list > li {
+	margin-bottom: 0.5em;
+	padding-bottom: 0.5em;
+	border-bottom: 1px solid rgba(0,0,0,0.3);
+}
+
+#posts_list > li:last-of-type, #files_list > li:last-of-type {
+	margin-bottom: 0;
+	padding-bottom: 0;
+	border-bottom: none;
+}
+
+#posts_list > li > div > span {
+	opacity: 0.3;
+}
+
+#posts_list > li > div > a {
+	margin: 0 0.5em;
+	float: right;
+}
+
+#files_list > li > h1 {
+	display: inline;
+}
+
+#files_list > li > a {
+	margin: 0 0.5em;
+	float: right;
+}
+
+#file_author {
+	text-align: center;
+	background: white;
+	padding: 1em;
+	border-radius: 0.2em;
+}
+
+.input_container {
+	margin-top: 1em;
+	text-align: right;
+}
+
+.load_container {
+	text-align: center;
+	padding: 0.5em 0;
+}

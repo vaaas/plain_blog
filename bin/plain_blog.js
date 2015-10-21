@@ -10,7 +10,6 @@ var http = require("http");
 var fs = require("fs");
 var url = require("url");
 var dot = require("dot");
-var zlib = require("zlib");
 var cheerio = require("cheerio");
 var conf = require("/etc/plain_blog.js");
 var template, rss, data;

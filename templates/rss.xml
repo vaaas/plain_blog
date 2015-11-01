@@ -10,8 +10,8 @@
 		<item>
 			<title>{{= post.title }}</title>
 			<description><![CDATA[{{= post.blurb }}]]></description>
-			<link>http://{{= it.host + "/posts/" + post.pathname }}</link>
-			<guid>http://{{= it.host + "/posts/" + post.pathname }}</guid>
+			<link>http://{{= it.host + "/posts/" + post.basename }}</link>
+			<guid>http://{{= it.host + "/posts/" + post.basename }}</guid>
 			<pubDate>{{= post.published }}</pubDate>
 		</item>
 	{{~}}

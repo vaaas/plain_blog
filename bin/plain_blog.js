@@ -6,13 +6,17 @@
 
 "use strict";
 
-var http = require("http");
-var fs = require("fs");
-var url = require("url");
-var dot = require("dot");
-var cheerio = require("cheerio");
-var conf = require("/etc/plain_blog.js");
-var template, rss, data;
+// libraries
+var http = require("http"),
+	fs = require("fs"),
+	url = require("url"),
+	zlib = require("zlib"),
+	path = require("path"),
+	dot = require("dot"),
+	cheerio = require("cheerio");
+
+// globals
+var template, rss, data, conf;
 
 var mime_types = {
 	".html": "text/html",
@@ -71,18 +75,15 @@ var mime_types = {
 // serve a response
 // conf: a response configuration object
 http.ServerResponse.prototype.serve = function serve (conf) {
-	var self = this;
-	self.writeHead (conf.code, conf.message, conf.headers);
+	var gzip = zlib.createGzip();
+	conf.message["content-encoding"] = "gzip";
 
+	this.writeHead (conf.code, conf.message, conf.headers);
 	if (conf.data.constructor === fs.ReadStream) {
-		conf.data.on ("data", function (chunk) {
-			self.write (chunk);
-		});
-		conf.data.on ("end", function () {
-			self.end();
-		});
+		conf.data.pipe(gzip).pipe(this);
 	} else {
-		self.end (conf.data);
+		gzip.end(conf.data);
+		gzip.pipe(this);
 	}
 };
 
@@ -107,6 +108,7 @@ Post.prototype.update = function update () {
 Post.prototype.__init__ = function __init__ (file) {
 	var $ = cheerio.load (fs.readFileSync (file, {"encoding":"utf-8"}));
 	this.pathname = file;
+	this.basename = path.basename(this.pathname);
 	this.mtime = fs.statSync(this.pathname).mtime;
 	this.title = $("h1:first-of-type").html().trim();
 	this.blurb = $("#blurb").html().trim();
@@ -134,7 +136,7 @@ function DB (pathname) {
 	var posts = fs.readdirSync(this.pathname);
 	this.posts = new Object ();
 	for (var i = 0, len = posts.length; i < len; i++) {
-		this.posts[posts[i]] = new Post(this.pathname + "/" + posts[i]);
+		this.posts[path.basename(posts[i])] = new Post(path.join(this.pathname, posts[i]));
 	}
 	this.sorted = Object.keys(this.posts);
 	this.sorted.sort();
@@ -147,7 +149,7 @@ function DB (pathname) {
 
 // reload the files
 DB.prototype.update = function update () {
-	var posts = fs.readdirSync (this.pathname + "/posts");
+	var posts = fs.readdirSync (path.join(this.pathname, "/posts"));
 	var hash = new Object();
 	for (var i = 0, len = posts.length; i < len; i++) {
 		hash[posts[i]] = i;
@@ -162,9 +164,9 @@ DB.prototype.update = function update () {
 	// additionally, update files that were modified
 	for (i = 0, len = posts.length; i < len; i++) {
 		if (!(posts[i] in this.posts)) {
-			this.posts[posts[i]] = new Post(this.pathname + "/" + posts[i]);
+			this.posts[posts[i]] = new Post(path.join(this.pathname, posts[i]));
 		} else if (
-			fs.statSync (this.pathname + "/posts/" + posts[i]).mtime >
+			fs.statSync(path.join(this.pathname, "posts", posts[i])).mtime >
 			this.posts[posts[i]].mtime
 		) {
 			this.posts[posts[i]].update();
@@ -216,7 +218,6 @@ DB.prototype.query = function query (q, callback) {
 			}
 		}
 	} else {
-		console.log (i, this.length, counter, step);
 		for (; i >= 0 && i < this.length && counter > 0; i += step) {
 			results.push (this.posts[this.sorted[i]]);
 			counter -= 1;
@@ -408,7 +409,7 @@ function request_listener (req, res) {
 		if (req.method !== "GET") {
 			// guests can do nothing but read posts
 			res.serve (code_response (405, "Only GET methods allowed"));
-		} else if (pathparts [2]) {
+		} else if (pathparts[2]) {
 			// GET /posts/postid
 			// render a single post
 			get_posts_element (pathparts[2], res.serve.bind(res));
@@ -433,10 +434,29 @@ function request_listener (req, res) {
 	}
 }
 
+function read_env_conf () {
+	conf = {
+		fs: {
+			dir: process.env.PWD,
+		},
+		http: {
+			port: process.env.PORT || 50000,
+			host: process.env.HOST || "localhost",
+		},
+		blog: {
+			title: process.env.TITLE,
+			description: process.env.DESCRIPTION,
+			keywords: process.env.KEYWORDS.split(","),
+			author: process.env.AUTHOR,
+			posts_per_page: process.env.PPP || 10,
+		}
+	};
+}
+
 // listens to SIGHUP
 // reconfigures the server
 function HUP_listener () {
-	conf = require("/etc/plain_blog.js");
+	read_env_conf();
 	init_templates();
 	data.update();
 }
@@ -445,14 +465,14 @@ function HUP_listener () {
 function init_templates () {
 	template = dot.template (
 		fs.readFileSync (
-			conf.fs.dir + "/template.html",
+			path.join(conf.fs.dir, "/template.html"),
 			{"encoding": "utf-8"}
 		)
 	);
 
 	rss = dot.template (
 		fs.readFileSync (
-			conf.fs.dir + "/rss.xml",
+			path.join(conf.fs.dir, "/rss.xml"),
 			{"encoding": "utf-8"}
 		)
 	);
@@ -470,11 +490,13 @@ function init_server () {
 
 // gets things going
 function main () {
-	console.log ("Parsing files.");
-	data = new DB (conf.fs.dir + "/posts");
+	init_process();
+	console.log("Configuring.");
+	read_env_conf();
+	console.log ("Parsing posts.");
+	data = new DB (path.join(conf.fs.dir, "/posts"));
 	console.log ("Compiling templates.");
 	init_templates();
-	init_process();
 	console.log ("Starting server.");
 	init_server();
 	console.log ("Server listening to " + conf.http.host + ":" + conf.http.port);

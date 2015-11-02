@@ -336,10 +336,10 @@ function get_posts_element (name, callback) {
 // on success, serves RSS+XML content (200)
 // if nothing is found, serves plain text (404)
 function get_rss_feed (callback) {
-	DB.query(null, function (results) {
+	data.query(null, function (err, results) {
 		if (results.length === 0) {
 			// nothing found
-			return callback(code_response (404));
+			return callback(code_response(404));
 		}
 		return callback({
 			code: 200,
@@ -419,7 +419,7 @@ function request_listener (req, res) {
 		if (req.method !== "GET") {
 			res.serve(code_response(405, "Only GET methods are allowed"));
 		} else if (pathparts [2] === "rss.xml") {
-			get_rss_feed(res.serve);
+			get_rss_feed(res.serve.bind(res));
 		} else {
 			res.serve(code_response(404, "Not found"));
 		}

@@ -28,7 +28,7 @@
 		{{~it.posts:post:postid}}
 		{{
 			var d = new Date (post.date);
-			d = d.getDate() + "-" + d.getMonth() + "-" + d.getFullYear();
+			d = d.getDate() + "-" + (d.getMonth()+1) + "-" + d.getFullYear();
 		}}
 		<article>
 			<h1><a href="/posts/{{=post.basename}}">{{=post.title}}</a></h1>

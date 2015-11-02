@@ -75,10 +75,12 @@ var mime_types = {
 // serve a response
 // conf: a response configuration object
 http.ServerResponse.prototype.serve = function serve (conf) {
+	// almost everything supports gzip compressed responses nowadays
 	var gzip = zlib.createGzip();
 	conf.message["content-encoding"] = "gzip";
 
-	this.writeHead (conf.code, conf.message, conf.headers);
+	// we accept both streams and raw data
+	this.writeHead(conf.code, conf.message, conf.headers);
 	if (conf.data.constructor === fs.ReadStream) {
 		conf.data.pipe(gzip).pipe(this);
 	} else {
@@ -87,42 +89,31 @@ http.ServerResponse.prototype.serve = function serve (conf) {
 	}
 };
 
-// check whether a number is an integer
-// returns bool
-Number.prototype.isInteger = function isInteger () {
-	return this % 1 === 0;
-};
-
 // a blog entry
 function Post (pathname) {
-	this.__init__(pathname);
+	this.extract_data(pathname);
 }
 
-// sync internal state to file
-Post.prototype.update = function update () {
-	this.__init__(this.pathname);
-};
-
-// extract information from a HTML file
-// file: the file path as string
-Post.prototype.__init__ = function __init__ (file) {
-	var $ = cheerio.load (fs.readFileSync (file, {"encoding":"utf-8"}));
-	this.pathname = file;
+Post.prototype.extract_data = function extract_data (pathname) {
+	this.pathname = pathname;
 	this.basename = path.basename(this.pathname);
 	this.mtime = fs.statSync(this.pathname).mtime;
+
+	// blog posts are in html, parse them and extract data from them
+	var $ = cheerio.load(fs.readFileSync(pathname, {"encoding":"utf-8"}));
 	this.title = $("h1:first-of-type").html().trim();
 	this.blurb = $("#blurb").html().trim();
 	this.content = $("body").html().trim();
-
+	// the meta element has a different API because it likes to feel special
 	var meta = $("meta");
 	for (var i = 0; i < meta.length; i++) {
 		switch (meta[i].attribs.name) {
 		case "date":
-			this.date = new Date (meta[i].attribs.content);
+			this.date = new Date(meta[i].attribs.content);
 			break;
 		case "keywords":
 			this.categories = meta[i].attribs.content.split(", ");
-			this.categories_hash = array_val_flags (this.categories);
+			this.categories_hash = array_val_flags(this.categories);
 			break;
 		default:
 			break;
@@ -130,52 +121,57 @@ Post.prototype.__init__ = function __init__ (file) {
 	}
 };
 
+Post.prototype.update = function update () {
+	this.extract_data(this.pathname);
+};
+
 // a data structure holding all the blog posts & metadata
 function DB (pathname) {
 	this.pathname = pathname;
 	var posts = fs.readdirSync(this.pathname);
-	this.posts = new Object ();
+	this.posts = new Object();
 	for (var i = 0, len = posts.length; i < len; i++) {
-		this.posts[path.basename(posts[i])] = new Post(path.join(this.pathname, posts[i]));
+		this.posts[posts[i]] = new Post(path.join(this.pathname, posts[i]));
 	}
+	this.init_sorted();
+}
+
+// inits the array of sorted posts (reverse alphabetical order)
+DB.prototype.init_sorted = function init_sorted () {
 	this.sorted = Object.keys(this.posts);
 	this.sorted.sort();
 	this.sorted.reverse();
 	this.length = this.sorted.length;
-	for (i = 0; i < this.length; i++) {
+	for (var i = 0; i < this.length; i++) {
 		this.posts[this.sorted[i]].id = i;
 	}
-}
+};
 
 // reload the files
 DB.prototype.update = function update () {
-	var posts = fs.readdirSync (path.join(this.pathname, "/posts"));
+	var posts = fs.readdirSync(path.join(this.pathname, "posts"));
 	var hash = new Object();
 	for (var i = 0, len = posts.length; i < len; i++) {
 		hash[posts[i]] = i;
 	}
 	// remove files that no longer exist from the database
 	for (var key in this.posts) {
-		if (this.posts.hasOwnProperty (key) && !(key in hash)) {
+		if (this.posts.hasOwnProperty(key) && !(key in hash)) {
 			delete this.posts[key];
 		}
 	}
 	// add files that don't exist in the database to the database
 	// additionally, update files that were modified
+	var pathname = "";
 	for (i = 0, len = posts.length; i < len; i++) {
-		if (!(posts[i] in this.posts)) {
-			this.posts[posts[i]] = new Post(path.join(this.pathname, posts[i]));
-		} else if (
-			fs.statSync(path.join(this.pathname, "posts", posts[i])).mtime >
-			this.posts[posts[i]].mtime
-		) {
+		pathname = path.join(this.pathname, "posts", posts[i]);
+		if (!(this.exists(posts[i])) {
+			this.posts[posts[i]] = new Post(pathname);
+		} else if (fs.statSync(pathname).mtime > this.posts[posts[i]].mtime) {
 			this.posts[posts[i]].update();
 		}
 	}
-	this.length = this.sorted.length;
-	for (i = 0; i < this.length; i++) {
-		this.posts[this.sorted[i]].id = i;
-	}
+	this.init_sorted();
 };
 
 // run a query on the data
@@ -194,8 +190,8 @@ DB.prototype.query = function query (q, callback) {
 		q.newer = null;
 		q.older = null;
 	} else if (q.newer) {
-		q.newer = parseInt (q.newer, 10);
-		if (q.newer.isInteger()) {
+		q.newer = parseInt(q.newer, 10);
+		if (Number.isInteger(q.newer) {
 			i = q.newer - 1;
 			step = -1;
 		} else {
@@ -203,7 +199,7 @@ DB.prototype.query = function query (q, callback) {
 		}
 	} else if (q.older) {
 		q.older = parseInt (q.older, 10);
-		if (q.older.isInteger()) {
+		if (Number.isInteger(q.older) {
 			i = q.older + 1;
 		} else {
 			q.older = null;
@@ -213,20 +209,20 @@ DB.prototype.query = function query (q, callback) {
 	if (q.category) {
 		for (; i >= 0 && i < this.length && counter > 0; i += step) {
 			if (this.posts[this.sorted[i]][q.category] === true) {
-				results.push (this.posts[this.sorted[i]]);
+				results.push(this.posts[this.sorted[i]]);
 				counter -= 1;
 			}
 		}
 	} else {
 		for (; i >= 0 && i < this.length && counter > 0; i += step) {
-			results.push (this.posts[this.sorted[i]]);
+			results.push(this.posts[this.sorted[i]]);
 			counter -= 1;
 		}
 	}
 	if (step === -1) {
 		results.reverse();
 	}
-	callback (null, results);
+	callback(null, results);
 };
 
 // return whether post exists in database
@@ -263,7 +259,7 @@ function code_response (num, msg) {
 // path: path to the file
 // returns string
 function determine_mime_type (path) {
-	var index = path.slice (path.lastIndexOf ("."));
+	var index = path.slice(path.lastIndexOf("."));
 	if (index in mime_types) {
 		return mime_types [index];
 	} else {
@@ -278,14 +274,14 @@ function determine_mime_type (path) {
 // on success, serves HTML content (200)
 // if nothing is found, serves empty (404)
 function get_posts_collection (query, callback) {
-	data.query (query, function (err, results) {
+	data.query(query, function (err, results) {
 		if (err) {
-			return callback (code_response (500, err.message));
+			return callback(code_response (500, err.message));
 		} else if (results.length > 0) {
-			return callback ({
+			return callback({
 				code: 200,
 				message: {"Content-type": "text/html"},
-				data: template ({ // render the page
+				data: template({ // render the page
 					blog: conf.blog,
 					type: "collection",
 					category: (query && query.category) ? query.category : null,
@@ -293,10 +289,10 @@ function get_posts_collection (query, callback) {
 				})
 			});
 		} else {
-			return callback ({
+			return callback({
 				code: 404,
 				message: {"Content-type": "text/html"},
-				data: template ({
+				data: template({
 					blog: conf.blog,
 					type: "empty"
 				})
@@ -313,20 +309,20 @@ function get_posts_collection (query, callback) {
 // if nothing is found, serves HTML content (404)
 function get_posts_element (name, callback) {
 	if (data.exists(name)) {
-		return callback ({
+		return callback({
 			code: 200,
 			message: {"Content-type": "text/html"},
-			data: template ({ // render the page
+			data: template({ // render the page
 				blog: conf.blog,
 				type: "element",
 				post: data.get(name)
 			})
 		});
 	} else {
-		return callback ({
+		return callback({
 			code: 404,
 			message: {"Content-type": "text/html"},
-			data: template ({
+			data: template({
 				blog: conf.blog,
 				type: "empty"
 			})
@@ -343,12 +339,12 @@ function get_rss_feed (callback) {
 	DB.query(null, function (results) {
 		if (results.length === 0) {
 			// nothing found
-			return callback (code_response (404));
+			return callback(code_response (404));
 		}
-		return callback ({
+		return callback({
 			code: 200,
 			message: {"Content-type": "application/rss+xml"},
-			data: rss ({
+			data: rss({
 				blog: conf.blog,
 				host: conf.http.host,
 				posts: results
@@ -360,14 +356,14 @@ function get_rss_feed (callback) {
 // serve a static file
 function get_static_element (path, callback) {
 	path = conf.fs.dir + path;
-	fs.exists (path, function (exists) {
+	fs.exists(path, function (exists) {
 		if (!exists) {
-			return callback (code_response (404, "Element doesn't exist"));
+			return callback(code_response(404, "Element doesn't exist"));
 		}
 		return callback({
 			code: 200,
-			message: { "Content-type": determine_mime_type (path) },
-			data: fs.createReadStream (path)
+			message: { "Content-type": determine_mime_type(path) },
+			data: fs.createReadStream(path)
 		});
 	});
 }
@@ -382,54 +378,54 @@ function get_static_element (path, callback) {
 // if a method is not allowed, serves plain text (405)
 function request_listener (req, res) {
 	// parse the url and delimit the directories
-	var purl = url.parse (req.url, true);
-	var pathparts = purl.pathname.split ("/");
+	var purl = url.parse(req.url, true);
+	var pathparts = purl.pathname.split("/");
 
 	switch (pathparts[1]) {
 	case "":
 		// same as GET /posts
 		if (req.method !== "GET") {
-			res.serve (code_response (405, "Only GET methods allowed"));
+			res.serve(code_response(405, "Only GET methods allowed"));
 		} else {
-			get_posts_collection (null, res.serve.bind(res));
+			get_posts_collection(null, res.serve.bind(res));
 		}
 		break;
 	case "static":
 		// serve static files
 		if (req.method !== "GET") {
-			res.serve (code_response (405, "Only GET methods allowed"));
+			res.serve(code_response(405, "Only GET methods allowed"));
 		} else if (!pathparts[2]) {
-			res.serve (code_response (404, "Element doesn't exist"));
+			res.serve(code_response(404, "Element doesn't exist"));
 		} else {
-			get_static_element (purl.pathname, res.serve.bind(res));
+			get_static_element(purl.pathname, res.serve.bind(res));
 		}
 		break;
 	case "posts":
 		// public api for reading posts
 		if (req.method !== "GET") {
 			// guests can do nothing but read posts
-			res.serve (code_response (405, "Only GET methods allowed"));
+			res.serve(code_response(405, "Only GET methods allowed"));
 		} else if (pathparts[2]) {
 			// GET /posts/postid
 			// render a single post
-			get_posts_element (pathparts[2], res.serve.bind(res));
+			get_posts_element(pathparts[2], res.serve.bind(res));
 		} else {
 			// GET /posts
 			// render a list / summary of several posts
-			get_posts_collection (purl.query, res.serve.bind(res));
+			get_posts_collection(purl.query, res.serve.bind(res));
 		}
 		break;
 	case "feeds":
 		if (req.method !== "GET") {
-			res.serve (code_response (405, "Only GET methods are allowed"));
+			res.serve(code_response(405, "Only GET methods are allowed"));
 		} else if (pathparts [2] === "rss.xml") {
-			get_rss_feed (res.serve);
+			get_rss_feed(res.serve);
 		} else {
-			res.serve (code_response (404, "Not found"));
+			res.serve(code_response(404, "Not found"));
 		}
 		break;
 	default:
-		res.serve (code_response (404, "Not found"));
+		res.serve(code_response(404, "Not found"));
 		break;
 	}
 }
@@ -463,15 +459,15 @@ function HUP_listener () {
 
 // compile the templates
 function init_templates () {
-	template = dot.template (
-		fs.readFileSync (
+	template = dot.template(
+		fs.readFileSync(
 			path.join(conf.fs.dir, "/template.html"),
 			{"encoding": "utf-8"}
 		)
 	);
 
-	rss = dot.template (
-		fs.readFileSync (
+	rss = dot.template(
+		fs.readFileSync(
 			path.join(conf.fs.dir, "/rss.xml"),
 			{"encoding": "utf-8"}
 		)
@@ -480,12 +476,12 @@ function init_templates () {
 
 // listen to signals
 function init_process () {
-	process.on ("SIGHUP", HUP_listener);
+	process.on("SIGHUP", HUP_listener);
 }
 
 // start the http server
 function init_server () {
-	http.createServer(request_listener).listen (conf.http.port, conf.http.host);
+	http.createServer(request_listener).listen(conf.http.port, conf.http.host);
 }
 
 // gets things going
@@ -493,13 +489,13 @@ function main () {
 	init_process();
 	console.log("Configuring.");
 	read_env_conf();
-	console.log ("Parsing posts.");
-	data = new DB (path.join(conf.fs.dir, "/posts"));
-	console.log ("Compiling templates.");
+	console.log("Parsing posts.");
+	data = new DB(path.join(conf.fs.dir, "/posts"));
+	console.log("Compiling templates.");
 	init_templates();
-	console.log ("Starting server.");
+	console.log("Starting server.");
 	init_server();
-	console.log ("Server listening to " + conf.http.host + ":" + conf.http.port);
+	console.log("Server listening to " + conf.http.host + ":" + conf.http.port);
 }
 
 main();

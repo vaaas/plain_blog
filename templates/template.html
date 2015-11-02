@@ -30,15 +30,14 @@
 			var d = new Date (post.date);
 			d = d.getDate() + "-" + d.getMonth() + "-" + d.getFullYear();
 		}}
-		<article class="card">
+		<article>
 			<h1><a href="/posts/{{=post.basename}}">{{=post.title}}</a></h1>
 			{{=post.blurb}}
-			<a class="card readmore" href="/posts/{{=post.basename}}">Read more</a>
+			<a class="readmore" href="/posts/{{=post.basename}}">Read more</a>
 			<div class="published">Posted on {{=d}}</div>
 			{{? post.categories}}
 				<div class="categories">
-					Under
-					{{~post.categories:category:catid}}
+					Under: {{~post.categories:category:catid}}
 						<a href="/posts?category={{=category}}">{{=category}}</a>
 					{{~}}
 				</div>
@@ -47,8 +46,8 @@
 		{{~}}
 	</main>
 	<nav>
-		<a class="card" id="next" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}newer={{=it.posts[0].id}}">←</a>
-		<a class="card" id="prev" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}older={{=it.posts[it.posts.length-1].id}}">→</a>
+		<a id="next" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}newer={{=it.posts[0].id}}">←</a>
+		<a id="prev" href="/posts?{{? it.category}}category={{=it.category}}&amp;{{?}}older={{=it.posts[it.posts.length-1].id}}">→</a>
 	</nav>
 
 {{?? it.type === "element"}}
@@ -61,8 +60,7 @@
 		<div class="published">Posted on {{=d}}</div>
 		{{? it.post.categories}}
 			<div class="categories">
-				Under
-				{{~it.post.categories:category:catid}}
+				Under: {{~it.post.categories:category:catid}}
 					<a href="/posts?category={{=category}}">{{=category}}</a>
 				{{~}}
 			</div>

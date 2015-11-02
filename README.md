@@ -20,7 +20,7 @@ and configuration is done through environment variables.
 - ```$PORT``` determines the port used
 - ```$TITLE``` determines the blog title
 - ```$DESCRIPTION``` determines the blog description / byline
-- ```$KEYWORDS``` determines the blog meta keywords (separated by commas)
+- ```$KEYWORDS``` determines the blog meta keywords (separated by comma+space ```", "```)
 - ```$AUTHOR``` determines the blog meta author
 - ```$PPP``` determines the posts that are seen per page and in RSS
 

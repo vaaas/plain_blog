@@ -442,7 +442,7 @@ function read_env_conf () {
 		blog: {
 			title: process.env.TITLE,
 			description: process.env.DESCRIPTION,
-			keywords: process.env.KEYWORDS.split(","),
+			keywords: process.env.KEYWORDS.split(", "),
 			author: process.env.AUTHOR,
 			posts_per_page: process.env.PPP || 10,
 		}

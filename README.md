@@ -12,11 +12,19 @@ A very plain flat files dynamic blog, written in Javascript.
 
 A makefile is provided to ease and automate installation.
 The main executable is installed in ```/usr/local/bin```,
-its configuration file in ```/etc/```,
-and shared data in ```/usr/local/share/plain_blog```.
+shared data in ```/usr/local/share/plain_blog```,
+and configuration is done through environment variables.
 
-Usage is possible either as a module (```require```) or stand-alone.
-Edit ```/etc/plain_blog.js``` to match your preferences.
+- The working directory is considered the root from where to look for files
+- ```$HOST``` determines the hostname used
+- ```$PORT``` determines the port used
+- ```$TITLE``` determines the blog title
+- ```$DESCRIPTION``` determines the blog description / byline
+- ```$KEYWORDS``` determines the blog meta keywords (separated by commas)
+- ```$AUTHOR``` determines the blog meta author
+- ```$PPP``` determines the posts that are seen per page and in RSS
+
+## Posting
 
 There is no database. Information is extracted by parsing HTML files under
 ```/usr/local/share/plain_blog/posts``` and stored in-memory. The parser looks

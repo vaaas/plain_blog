@@ -165,7 +165,7 @@ DB.prototype.update = function update () {
 	var pathname = "";
 	for (i = 0, len = posts.length; i < len; i++) {
 		pathname = path.join(this.pathname, "posts", posts[i]);
-		if (!(this.exists(posts[i])) {
+		if (!(this.exists(posts[i]))) {
 			this.posts[posts[i]] = new Post(pathname);
 		} else if (fs.statSync(pathname).mtime > this.posts[posts[i]].mtime) {
 			this.posts[posts[i]].update();
@@ -191,7 +191,7 @@ DB.prototype.query = function query (q, callback) {
 		q.older = null;
 	} else if (q.newer) {
 		q.newer = parseInt(q.newer, 10);
-		if (Number.isInteger(q.newer) {
+		if (Number.isInteger(q.newer)) {
 			i = q.newer - 1;
 			step = -1;
 		} else {
@@ -199,7 +199,7 @@ DB.prototype.query = function query (q, callback) {
 		}
 	} else if (q.older) {
 		q.older = parseInt (q.older, 10);
-		if (Number.isInteger(q.older) {
+		if (Number.isInteger(q.older)) {
 			i = q.older + 1;
 		} else {
 			q.older = null;
@@ -228,12 +228,12 @@ DB.prototype.query = function query (q, callback) {
 // return whether post exists in database
 DB.prototype.exists = function exists(post) {
 	return (post in this.posts);
-}
+};
 
 // get post from database
 DB.prototype.get = function get (post) {
 	return (this.posts[post]);
-}
+};
 
 // array[index] = val → object[val] = true
 function array_val_flags (arr) {

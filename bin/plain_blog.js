@@ -354,16 +354,16 @@ function get_rss_feed (callback) {
 }
 
 // serve a static file
-function get_static_element (path, callback) {
-	path = conf.fs.dir + path;
-	fs.exists(path, function (exists) {
+function get_static_element (what, callback) {
+	var pathname = path.join(conf.fs.dir, what);
+	fs.exists(pathname, function (exists) {
 		if (!exists) {
 			return callback(code_response(404, "Element doesn't exist"));
 		}
 		return callback({
 			code: 200,
-			message: { "Content-type": determine_mime_type(path) },
-			data: fs.createReadStream(path)
+			message: { "Content-type": determine_mime_type(pathname) },
+			data: fs.createReadStream(pathname)
 		});
 	});
 }

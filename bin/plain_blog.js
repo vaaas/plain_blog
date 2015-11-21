@@ -113,7 +113,6 @@ Post.prototype.extract_data = function extract_data (pathname) {
 			break;
 		case "keywords":
 			this.categories = meta[i].attribs.content.split(", ");
-			this.categories_hash = array_val_flags(this.categories);
 			break;
 		default:
 			break;
@@ -150,20 +149,26 @@ DB.prototype.init_sorted = function init_sorted () {
 // reload the files
 DB.prototype.update = function update () {
 	var posts = fs.readdirSync(path.join(this.pathname, "posts"));
-	var hash = new Object();
-	for (var i = 0, len = posts.length; i < len; i++) {
-		hash[posts[i]] = i;
-	}
+	var hash = array_to_object(posts);
+	this.purge_non_existent(hash);
+	this.add_update_new(posts);
+	this.init_sorted();
+};
+
+DB.prototype.purge_non_existent = function purge_non_existent (existent) {
 	// remove files that no longer exist from the database
 	for (var key in this.posts) {
-		if (this.posts.hasOwnProperty(key) && !(key in hash)) {
+		if (this.posts.hasOwnProperty(key) && !(key in existent)) {
 			delete this.posts[key];
 		}
 	}
+};
+
+DB.prototype.add_update_new = function add_update_new (posts) {
 	// add files that don't exist in the database to the database
 	// additionally, update files that were modified
 	var pathname = "";
-	for (i = 0, len = posts.length; i < len; i++) {
+	for (var i = 0, len = posts.length; i < len; i++) {
 		pathname = path.join(this.pathname, "posts", posts[i]);
 		if (!(this.exists(posts[i]))) {
 			this.posts[posts[i]] = new Post(pathname);
@@ -171,16 +176,11 @@ DB.prototype.update = function update () {
 			this.posts[posts[i]].update();
 		}
 	}
-	this.init_sorted();
 };
 
 // run a query on the data
-// query: a URI query
-// callback (results): function to call when results are acquired
+// q: a URI query
 DB.prototype.query = function query (q, callback) {
-	if (!(q) || typeof q !== "object") {
-		q = new Object();
-	}
 	var results = new Array();
 	var counter = conf.blog.posts_per_page;
 	var i = 0;
@@ -235,18 +235,15 @@ DB.prototype.get = function get (post) {
 	return (this.posts[post]);
 };
 
-// array[index] = val → object[val] = true
-function array_val_flags (arr) {
+// array[index] = val → object[val] = index
+function array_to_object (arr) {
 	var obj = new Object();
 	for (var i = 0, len = arr.length; i < len; i++) {
-		obj[arr[i]] = true;
+		obj[arr[i]] = i;
 	}
 	return obj;
 }
 
-// create a very simple response configuration object
-// num: number of the response code
-// returns a response configuration object
 function code_response (num, msg) {
 	return {
 		code: num,
@@ -255,9 +252,65 @@ function code_response (num, msg) {
 	};
 }
 
+function rss_response (results) {
+	return {
+		code: 200,
+		message: {"Content-type": "application/rss+xml"},
+		data: rss({
+			blog: conf.blog,
+			host: conf.http.host,
+			posts: results
+		})
+	};
+}
+
+function static_response (pathname) {
+	return {
+		code: 200,
+		message: {
+			"Content-type": determine_mime_type(pathname)
+		},
+		data: fs.createReadStream(pathname)
+	};
+}
+
+function post_response (name) {
+	return {
+		code: 200,
+		message: {"Content-type": "text/html"},
+		data: template({
+			blog: conf.blog,
+			type: "element",
+			post: data.get(name)
+		})
+	};
+}
+
+function post_list_response (results, query) {
+	return {
+		code: 200,
+		message: {"Content-type": "text/html"},
+		data: template({
+			blog: conf.blog,
+			type: "collection",
+			category: query.category || null,
+			posts: results
+		})
+	};
+}
+
+function empty_page_response () {
+	return {
+		code: 404,
+		message: {"Content-type": "text/html"},
+		data: template({
+			blog: conf.blog,
+			type: "empty"
+		})
+	};
+}
+
 // return the mime type of a file
-// path: path to the file
-// returns string
 function determine_mime_type (path) {
 	var index = path.slice(path.lastIndexOf("."));
 	if (index in mime_types) {
@@ -268,165 +321,109 @@ function determine_mime_type (path) {
 }
 
 // render the page for GET /posts
-// query: the user query object
-// callback (res_conf): the function to call when the response is ready
-// returns nothing
-// on success, serves HTML content (200)
-// if nothing is found, serves empty (404)
 function get_posts_collection (query, callback) {
 	data.query(query, function (err, results) {
 		if (err) {
-			return callback(code_response (500, err.message));
+			callback(code_response (500, err.message));
 		} else if (results.length > 0) {
-			return callback({
-				code: 200,
-				message: {"Content-type": "text/html"},
-				data: template({ // render the page
-					blog: conf.blog,
-					type: "collection",
-					category: (query && query.category) ? query.category : null,
-					posts: results
-				})
-			});
+			callback(post_list_response(results, query));
 		} else {
-			return callback({
-				code: 404,
-				message: {"Content-type": "text/html"},
-				data: template({
-					blog: conf.blog,
-					type: "empty"
-				})
-			});
+			// nothing found
+			return callback(empty_page_response());
 		}
 	});
 }
 
-// render the page for GET /posts/post
-// name: the post file name
-// callback (res_conf): the function to call when the response is ready
-// returns nothing
-// on success, serves HTML content (200)
-// if nothing is found, serves HTML content (404)
+// render the page for GET /posts/[postname]
 function get_posts_element (name, callback) {
 	if (data.exists(name)) {
-		return callback({
-			code: 200,
-			message: {"Content-type": "text/html"},
-			data: template({ // render the page
-				blog: conf.blog,
-				type: "element",
-				post: data.get(name)
-			})
-		});
+		callback(post_response(name));
 	} else {
-		return callback({
-			code: 404,
-			message: {"Content-type": "text/html"},
-			data: template({
-				blog: conf.blog,
-				type: "empty"
-			})
-		});
+		callback(empty_page_response());
 	}
 }
 
 // render the page for GET /feeds/rss.xml
-// callback (res_conf): the function to call when the resposne is ready
-// returns nothing
-// on success, serves RSS+XML content (200)
-// if nothing is found, serves plain text (404)
 function get_rss_feed (callback) {
-	data.query(null, function (err, results) {
+	data.query({}, function (err, results) {
 		if (results.length === 0) {
-			// nothing found
-			return callback(code_response(404));
+			callback(code_response(404));
+		} else {
+			callback(rss_response(results));
 		}
-		return callback({
-			code: 200,
-			message: {"Content-type": "application/rss+xml"},
-			data: rss({
-				blog: conf.blog,
-				host: conf.http.host,
-				posts: results
-			})
-		});
 	});
 }
 
-// serve a static file
 function get_static_element (what, callback) {
-	var pathname = path.join(conf.fs.dir, what);
+	var pathname = path.join(conf.fs.dir, "static", what);
 	fs.exists(pathname, function (exists) {
 		if (!exists) {
 			return callback(code_response(404, "Element doesn't exist"));
+		} else {
+			return callback(static_response(pathname));
 		}
-		return callback({
-			code: 200,
-			message: { "Content-type": determine_mime_type(pathname) },
-			data: fs.createReadStream(pathname)
-		});
 	});
 }
 
-// main http listener function
-// wait for requests and handle them appropriately
-// req: node.js http request object
-// res: node.js http response object
-// returns nothing
-// serves whatever the called functions serve
-// if a function is not found, serves empty (404)
-// if a method is not allowed, serves plain text (405)
-function request_listener (req, res) {
-	// parse the url and delimit the directories
-	var purl = url.parse(req.url, true);
-	var pathparts = purl.pathname.split("/");
+function request_root (req, res) {
+	if (req.method !== "GET") {
+		res.serve(code_response(405, "Only GET methods allowed"));
+	} else {
+		get_posts_collection({}, res.serve.bind(res));
+	}
+}
 
-	switch (pathparts[1]) {
-	case "":
-		// same as GET /posts
-		if (req.method !== "GET") {
-			res.serve(code_response(405, "Only GET methods allowed"));
-		} else {
-			get_posts_collection(null, res.serve.bind(res));
-		}
-		break;
-	case "static":
-		// serve static files
-		if (req.method !== "GET") {
-			res.serve(code_response(405, "Only GET methods allowed"));
-		} else if (!pathparts[2]) {
-			res.serve(code_response(404, "Element doesn't exist"));
-		} else {
-			get_static_element(purl.pathname, res.serve.bind(res));
-		}
-		break;
-	case "posts":
-		// public api for reading posts
-		if (req.method !== "GET") {
-			// guests can do nothing but read posts
-			res.serve(code_response(405, "Only GET methods allowed"));
-		} else if (pathparts[2]) {
-			// GET /posts/postid
-			// render a single post
-			get_posts_element(pathparts[2], res.serve.bind(res));
-		} else {
-			// GET /posts
-			// render a list / summary of several posts
-			get_posts_collection(purl.query, res.serve.bind(res));
-		}
-		break;
-	case "feeds":
-		if (req.method !== "GET") {
-			res.serve(code_response(405, "Only GET methods are allowed"));
-		} else if (pathparts [2] === "rss.xml") {
-			get_rss_feed(res.serve.bind(res));
-		} else {
-			res.serve(code_response(404, "Not found"));
-		}
-		break;
-	default:
+function request_posts_listing (req, res) {
+	if (req.method !== "GET") {
+		res.serve(code_response(405, "Only GET methods allowed"));
+	} else {
+		get_posts_collection(req.url.query, res.serve.bind(res));
+	}
+}
+
+function request_a_post (req, res) {
+	if (req.method !== "GET") {
+		res.serve(code_response(405, "Only GET methods allowed"));
+	} else {
+		get_posts_element(req.url.basename, res.serve.bind(res));
+	}
+}
+
+function request_static (req, res) {
+	if (req.method !== "GET") {
+		res.serve(code_response(405, "Only GET methods allowed"));
+	} else {
+		get_static_element(req.url.basename, res.serve.bind(res));
+	}
+}
+
+function request_a_feed (req, res) {
+	if (req.method !== "GET") {
+		res.serve(code_response(405, "Only GET methods are allowed"));
+	} else if (req.url.basename === "rss.xml") {
+		get_rss_feed(res.serve.bind(res));
+	} else {
 		res.serve(code_response(404, "Not found"));
-		break;
+	}
+}
+
+// main http listener function
+function request_listener (req, res) {
+	req.url = url.parse(req.url, true);
+	req.url.basename = path.basename(req.url.pathname);
+
+	if (req.url.pathname === "/") {
+		request_root(req, res);
+	} else if (req.url.pathname === "/posts") {
+		request_posts_listing(req, res);
+	} else if (req.url.pathname.startsWith("/posts")) {
+		request_a_post(req, res);
+	} else if (req.url.pathname !== "/static" && req.url.pathname.startsWith("/static")) {
+		request_static(req, res);
+	} else if (req.url.pathname !== "/feeds" && req.url.pathname.startsWith("/feeds")) {
+		request_a_feed(req, res);
+	} else {
+		res.serve(code_response(404, "Not found"));
 	}
 }
 
@@ -449,15 +446,12 @@ function read_env_conf () {
 	};
 }
 
-// listens to SIGHUP
-// reconfigures the server
 function HUP_listener () {
 	read_env_conf();
 	init_templates();
 	data.update();
 }
 
-// compile the templates
 function init_templates () {
 	template = dot.template(
 		fs.readFileSync(
@@ -474,17 +468,14 @@ function init_templates () {
 	);
 }
 
-// listen to signals
 function init_process () {
 	process.on("SIGHUP", HUP_listener);
 }
 
-// start the http server
 function init_server () {
 	http.createServer(request_listener).listen(conf.http.port, conf.http.host);
 }
 
-// gets things going
 function main () {
 	init_process();
 	console.log("Configuring.");

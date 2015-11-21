@@ -113,6 +113,7 @@ Post.prototype.extract_data = function extract_data (pathname) {
 			break;
 		case "keywords":
 			this.categories = meta[i].attribs.content.split(", ");
+			this.categories_hash = array_to_object(this.categories);
 			break;
 		default:
 			break;
@@ -122,6 +123,10 @@ Post.prototype.extract_data = function extract_data (pathname) {
 
 Post.prototype.update = function update () {
 	this.extract_data(this.pathname);
+};
+
+Post.prototype.has_category = function has_category (category) {
+	return (category in this.categories_hash);
 };
 
 // a data structure holding all the blog posts & metadata
@@ -185,6 +190,7 @@ DB.prototype.query = function query (q, callback) {
 	var counter = conf.blog.posts_per_page;
 	var i = 0;
 	var step = 1;
+	var cpost;
 
 	if (q.newer && q.older) {
 		q.newer = null;
@@ -208,14 +214,16 @@ DB.prototype.query = function query (q, callback) {
 
 	if (q.category) {
 		for (; i >= 0 && i < this.length && counter > 0; i += step) {
-			if (this.posts[this.sorted[i]][q.category] === true) {
-				results.push(this.posts[this.sorted[i]]);
+			cpost = this.posts[this.sorted[i]];
+			if (cpost.has_category(q.category)) {
+				results.push(cpost);
 				counter -= 1;
 			}
 		}
 	} else {
 		for (; i >= 0 && i < this.length && counter > 0; i += step) {
-			results.push(this.posts[this.sorted[i]]);
+			cpost = this.posts[this.sorted[i]];
+			results.push(cpost);
 			counter -= 1;
 		}
 	}

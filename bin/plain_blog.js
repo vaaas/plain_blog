@@ -469,7 +469,7 @@ function init_templates () {
 				{"encoding": "utf-8"}
 			)
 		)
-	}
+	};
 }
 
 function init_process () {

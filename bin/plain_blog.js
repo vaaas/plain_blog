@@ -343,58 +343,47 @@ class WebServer {
 	request_listener (req, res) {
 		req.url = url.parse(req.url, true);
 		req.url.basename = path.basename(req.url.pathname);
-
-		if (req.url.pathname === "/") {
-			this.request_root(req, res);
-		} else if (req.url.pathname === "/posts") {
-			this.request_posts_listing(req, res);
-		} else if (req.url.pathname.startsWith("/posts")) {
-			this.request_a_post(req, res);
-		} else if (req.url.pathname !== "/static" && req.url.pathname.startsWith("/static")) {
-			this.request_static(req, res);
-		} else if (req.url.pathname !== "/feeds" && req.url.pathname.startsWith("/feeds")) {
-			this.request_a_feed(req, res);
-		} else {
-			res.serve(ResponseConf.code(404, "Not found"));
+		req.url.split = req.url.pathname.split("/");
+		req.url.shift();
+		switch (req.method) {
+			case "GET":
+				this.get (req, res);
+				break;
+			default:
+				res.serve(ResponseConf.code(405, "Only GET methods are allowed"));
+				break;
 		}
 	}
 
-	request_root (req, res) {
-		if (req.method !== "GET") {
-			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-		} else {
-			this.get_posts_collection({}, res.serve.bind(res));
-		}
-	}
-	request_a_post (req, res) {
-		if (req.method !== "GET") {
-			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-		} else {
-			this.get_posts_element(req.url.basename, res.serve.bind(res));
-		}
-	}
-	request_posts_listing (req, res) {
-		if (req.method !== "GET") {
-			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-		} else {
-			this.get_posts_collection(req.url.query, res.serve.bind(res));
-		}
-	}
-	request_static (req, res) {
-		if (req.method !== "GET") {
-			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-		} else {
-			this.get_static_element(req.url.basename, res.serve.bind(res));
-		}
-	}
-
-	request_a_feed (req, res) {
-		if (req.method !== "GET") {
-			res.serve(ResponseConf.code(405, "Only GET methods are allowed"));
-		} else if (req.url.basename === "rss.xml") {
-			this.get_rss_feed(res.serve.bind(res));
-		} else {
-			res.serve(ResponseConf.code(404, "Not found"));
+	get (req, res) {
+		switch (req.url.split.shift()) {
+			case "":
+				this.get_posts_collection({}, res.serve.bind(res));
+				break;
+			case "posts":
+				if (req.url.split.shift()) {
+					this.get_posts_element(req.url.basename, res.serve.bind(res));
+				} else {
+					this.get_posts_collection(req.url.query, res.serve.bind(res));
+				}
+				break;
+			case "static":
+				if (req.url.split.shift()) {
+					this.get_static_element(req.url.basename, res.serve.bind(res));
+				} else {
+					res.serve(ResponseConf.code(400));
+				}
+				break;
+			case "feeds":
+				if (req.url.split.shift() == "rss.xml") {
+					this.get_rss_feed(res.serve.bind(res));
+				} else {
+					res.serve(ResponseConf.code(404, "Not found"));
+				}
+				break;
+			default:
+				res.serve(ResponseConf.code(404, "Not found"));
+				break;
 		}
 	}
 

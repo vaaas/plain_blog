@@ -344,7 +344,7 @@ class WebServer {
 		req.url = url.parse(req.url, true);
 		req.url.basename = path.basename(req.url.pathname);
 		req.url.split = req.url.pathname.split("/");
-		req.url.shift();
+		req.url.split.shift();
 		switch (req.method) {
 			case "GET":
 				this.get (req, res);

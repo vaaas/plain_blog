@@ -72,6 +72,25 @@ const mime_types = {
 	".3gpp": "video/3gpp",
 };
 
+// array[index] = val → object[val] = index
+function array_to_object (arr) {
+	var obj = new Object();
+	for (var i = 0, len = arr.length; i < len; i++) {
+		obj[arr[i]] = i;
+	}
+	return obj;
+}
+
+// return the mime type of a file
+function determine_mime_type (path) {
+	var index = path.slice(path.lastIndexOf("."));
+	if (index in mime_types) {
+		return mime_types [index];
+	} else {
+		return "application/octet_stream";
+	}
+}
+
 // serve a response
 // conf: a response configuration object
 http.ServerResponse.prototype.serve = function serve (conf) {
@@ -247,15 +266,6 @@ class DB {
 	}
 }
 
-// array[index] = val → object[val] = index
-function array_to_object (arr) {
-	var obj = new Object();
-	for (var i = 0, len = arr.length; i < len; i++) {
-		obj[arr[i]] = i;
-	}
-	return obj;
-}
-
 class ResponseConf {
 	static code (num, msg) {
 		return {
@@ -324,120 +334,110 @@ class ResponseConf {
 	}
 }
 
-// return the mime type of a file
-function determine_mime_type (path) {
-	var index = path.slice(path.lastIndexOf("."));
-	if (index in mime_types) {
-		return mime_types [index];
-	} else {
-		return "application/octet_stream";
+class WebServer {
+	constructor (port, host) {
+		this.server = http.createServer(this.request_listener.bind(this));
+		this.server.listen(port, host);
 	}
-}
 
-// render the page for GET /posts
-function get_posts_collection (query, callback) {
-	data.query(query, function (err, results) {
-		if (err) {
-			callback(ResponseConf.code (500, err.message));
-		} else if (results.length > 0) {
-			callback(ResponseConf.post_list(results, query));
+	request_listener (req, res) {
+		req.url = url.parse(req.url, true);
+		req.url.basename = path.basename(req.url.pathname);
+
+		if (req.url.pathname === "/") {
+			this.request_root(req, res);
+		} else if (req.url.pathname === "/posts") {
+			this.request_posts_listing(req, res);
+		} else if (req.url.pathname.startsWith("/posts")) {
+			this.request_a_post(req, res);
+		} else if (req.url.pathname !== "/static" && req.url.pathname.startsWith("/static")) {
+			this.request_static(req, res);
+		} else if (req.url.pathname !== "/feeds" && req.url.pathname.startsWith("/feeds")) {
+			this.request_a_feed(req, res);
 		} else {
-			// nothing found
-			return callback(ResponseConf.empty_page());
+			res.serve(ResponseConf.code(404, "Not found"));
 		}
-	});
-}
-
-// render the page for GET /posts/[postname]
-function get_posts_element (name, callback) {
-	if (data.exists(name)) {
-		callback(ResponseConf.post(name));
-	} else {
-		callback(ResponseConf.empty_page());
 	}
-}
 
-// render the page for GET /feeds/rss.xml
-function get_rss_feed (callback) {
-	data.query({}, function (err, results) {
-		if (results.length === 0) {
-			callback(ResponseConf.code(404));
+	request_root (req, res) {
+		if (req.method !== "GET") {
+			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
 		} else {
-			callback(ResponseConf.rss(results));
+			this.get_posts_collection({}, res.serve.bind(res));
 		}
-	});
-}
-
-function get_static_element (what, callback) {
-	var pathname = path.join(conf.fs.dir, "static", what);
-	fs.exists(pathname, function (exists) {
-		if (!exists) {
-			return callback(ResponseConf.code(404, "Element doesn't exist"));
+	}
+	request_a_post (req, res) {
+		if (req.method !== "GET") {
+			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
 		} else {
-			return callback(ResponseConf.file(pathname));
+			this.get_posts_element(req.url.basename, res.serve.bind(res));
 		}
-	});
-}
-
-function request_root (req, res) {
-	if (req.method !== "GET") {
-		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-	} else {
-		get_posts_collection({}, res.serve.bind(res));
 	}
-}
-
-function request_posts_listing (req, res) {
-	if (req.method !== "GET") {
-		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-	} else {
-		get_posts_collection(req.url.query, res.serve.bind(res));
+	request_posts_listing (req, res) {
+		if (req.method !== "GET") {
+			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
+		} else {
+			this.get_posts_collection(req.url.query, res.serve.bind(res));
+		}
 	}
-}
-
-function request_a_post (req, res) {
-	if (req.method !== "GET") {
-		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-	} else {
-		get_posts_element(req.url.basename, res.serve.bind(res));
+	request_static (req, res) {
+		if (req.method !== "GET") {
+			res.serve(ResponseConf.code(405, "Only GET methods allowed"));
+		} else {
+			this.get_static_element(req.url.basename, res.serve.bind(res));
+		}
 	}
-}
 
-function request_static (req, res) {
-	if (req.method !== "GET") {
-		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
-	} else {
-		get_static_element(req.url.basename, res.serve.bind(res));
+	request_a_feed (req, res) {
+		if (req.method !== "GET") {
+			res.serve(ResponseConf.code(405, "Only GET methods are allowed"));
+		} else if (req.url.basename === "rss.xml") {
+			this.get_rss_feed(res.serve.bind(res));
+		} else {
+			res.serve(ResponseConf.code(404, "Not found"));
+		}
 	}
-}
 
-function request_a_feed (req, res) {
-	if (req.method !== "GET") {
-		res.serve(ResponseConf.code(405, "Only GET methods are allowed"));
-	} else if (req.url.basename === "rss.xml") {
-		get_rss_feed(res.serve.bind(res));
-	} else {
-		res.serve(ResponseConf.code(404, "Not found"));
+	get_static_element (what, callback) {
+		var pathname = path.join(conf.fs.dir, "static", what);
+		fs.exists(pathname, function (exists) {
+			if (!exists) {
+				return callback(ResponseConf.code(404, "Element doesn't exist"));
+			} else {
+				return callback(ResponseConf.file(pathname));
+			}
+		});
 	}
-}
 
-// main http listener function
-function request_listener (req, res) {
-	req.url = url.parse(req.url, true);
-	req.url.basename = path.basename(req.url.pathname);
+	get_rss_feed (callback) {
+		data.query({}, function (err, results) {
+			if (results.length === 0) {
+				callback(ResponseConf.code(404));
+			} else {
+				callback(ResponseConf.rss(results));
+			}
+		});
+	}
 
-	if (req.url.pathname === "/") {
-		request_root(req, res);
-	} else if (req.url.pathname === "/posts") {
-		request_posts_listing(req, res);
-	} else if (req.url.pathname.startsWith("/posts")) {
-		request_a_post(req, res);
-	} else if (req.url.pathname !== "/static" && req.url.pathname.startsWith("/static")) {
-		request_static(req, res);
-	} else if (req.url.pathname !== "/feeds" && req.url.pathname.startsWith("/feeds")) {
-		request_a_feed(req, res);
-	} else {
-		res.serve(ResponseConf.code(404, "Not found"));
+	get_posts_element (name, callback) {
+		if (data.exists(name)) {
+			callback(ResponseConf.post(name));
+		} else {
+			callback(ResponseConf.empty_page());
+		}
+	}
+
+	get_posts_collection (query, callback) {
+		data.query(query, function (err, results) {
+			if (err) {
+				callback(ResponseConf.code (500, err.message));
+			} else if (results.length > 0) {
+				callback(ResponseConf.post_list(results, query));
+			} else {
+				// nothing found
+				return callback(ResponseConf.empty_page());
+			}
+		});
 	}
 }
 
@@ -467,19 +467,20 @@ function HUP_listener () {
 }
 
 function init_templates () {
-	Render.page = dot.template(
-		fs.readFileSync(
-			path.join(conf.fs.dir, "/template.html"),
-			{"encoding": "utf-8"}
+	Render = {
+		page: dot.template(
+			fs.readFileSync(
+				path.join(conf.fs.dir, "/template.html"),
+				{"encoding": "utf-8"}
+			)
+		),
+		rss: dot.template(
+			fs.readFileSync(
+				path.join(conf.fs.dir, "/rss.xml"),
+				{"encoding": "utf-8"}
+			)
 		)
-	);
-
-	Render.rss = dot.template(
-		fs.readFileSync(
-			path.join(conf.fs.dir, "/rss.xml"),
-			{"encoding": "utf-8"}
-		)
-	);
+	}
 }
 
 function init_process () {
@@ -487,7 +488,7 @@ function init_process () {
 }
 
 function init_server () {
-	http.createServer(request_listener).listen(conf.http.port, conf.http.host);
+	new WebServer(conf.http.port, conf.http.host);
 }
 
 function main () {

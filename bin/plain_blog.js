@@ -7,18 +7,18 @@
 "use strict";
 
 // libraries
-var http = require("http"),
-	fs = require("fs"),
-	url = require("url"),
-	zlib = require("zlib"),
-	path = require("path"),
-	dot = require("dot"),
-	cheerio = require("cheerio");
+const http = require("http");
+const fs = require("fs");
+const url = require("url");
+const zlib = require("zlib");
+const path = require("path");
+const dot = require("dot");
+const cheerio = require("cheerio");
 
 // globals
-var template, rss, data, conf;
+var Render, data, conf;
 
-var mime_types = {
+const mime_types = {
 	".html": "text/html",
 	".htm": "text/html",
 	".css": "text/css",
@@ -90,158 +90,162 @@ http.ServerResponse.prototype.serve = function serve (conf) {
 };
 
 // a blog entry
-function Post (pathname) {
-	this.extract_data(pathname);
-}
+class Post {
+	constructor (pathname) {
+		this.extract_data(pathname);
+	}
 
-Post.prototype.extract_data = function extract_data (pathname) {
-	this.pathname = pathname;
-	this.basename = path.basename(this.pathname);
-	this.mtime = fs.statSync(this.pathname).mtime;
+	extract_data (pathname) {
+		this.pathname = pathname;
+		this.basename = path.basename(this.pathname);
+		this.mtime = fs.statSync(this.pathname).mtime;
 
-	// blog posts are in html, parse them and extract data from them
-	var $ = cheerio.load(fs.readFileSync(pathname, {"encoding":"utf-8"}));
-	this.title = $("h1:first-of-type").html().trim();
-	this.blurb = $("#blurb").html().trim();
-	this.content = $("body").html().trim();
-	// the meta element has a different API because it likes to feel special
-	var meta = $("meta");
-	for (var i = 0; i < meta.length; i++) {
-		switch (meta[i].attribs.name) {
-		case "date":
-			this.date = new Date(meta[i].attribs.content);
-			break;
-		case "keywords":
-			this.categories = meta[i].attribs.content.split(", ");
-			this.categories_hash = array_to_object(this.categories);
-			break;
-		default:
-			break;
+		// blog posts are in html, parse them and extract data from them
+		var $ = cheerio.load(fs.readFileSync(pathname, {"encoding":"utf-8"}));
+		this.title = $("h1:first-of-type").html().trim();
+		this.blurb = $("#blurb").html().trim();
+		this.content = $("body").html().trim();
+		// the meta element has a different API because it likes to feel special
+		var meta = $("meta");
+		for (var i = 0; i < meta.length; i++) {
+			switch (meta[i].attribs.name) {
+			case "date":
+				this.date = new Date(meta[i].attribs.content);
+				break;
+			case "keywords":
+				this.categories = meta[i].attribs.content.split(", ");
+				this.categories_hash = array_to_object(this.categories);
+				break;
+			default:
+				break;
+			}
 		}
 	}
-};
 
-Post.prototype.update = function update () {
-	this.extract_data(this.pathname);
-};
+	update () {
+		this.extract_data(this.pathname);
+	}
 
-Post.prototype.has_category = function has_category (category) {
-	return (category in this.categories_hash);
-};
+	has_category (category) {
+		return (category in this.categories_hash);
+	}
+}
 
 // a data structure holding all the blog posts & metadata
-function DB (pathname) {
-	this.pathname = pathname;
-	var posts = fs.readdirSync(this.pathname);
-	this.posts = new Object();
-	for (var i = 0, len = posts.length; i < len; i++) {
-		this.posts[posts[i]] = new Post(path.join(this.pathname, posts[i]));
+class DB {
+	constructor (pathname) {
+		this.pathname = pathname;
+		var posts = fs.readdirSync(this.pathname);
+		this.posts = new Object();
+		for (var i = 0, len = posts.length; i < len; i++) {
+			this.posts[posts[i]] = new Post(path.join(this.pathname, posts[i]));
+		}
+		this.init_sorted();
 	}
-	this.init_sorted();
-}
 
-// inits the array of sorted posts (reverse alphabetical order)
-DB.prototype.init_sorted = function init_sorted () {
-	this.sorted = Object.keys(this.posts);
-	this.sorted.sort();
-	this.sorted.reverse();
-	this.length = this.sorted.length;
-	for (var i = 0; i < this.length; i++) {
-		this.posts[this.sorted[i]].id = i;
-	}
-};
-
-// reload the files
-DB.prototype.update = function update () {
-	var posts = fs.readdirSync(path.join(this.pathname, "posts"));
-	var hash = array_to_object(posts);
-	this.purge_non_existent(hash);
-	this.add_update_new(posts);
-	this.init_sorted();
-};
-
-DB.prototype.purge_non_existent = function purge_non_existent (existent) {
-	// remove files that no longer exist from the database
-	for (var key in this.posts) {
-		if (this.posts.hasOwnProperty(key) && !(key in existent)) {
-			delete this.posts[key];
+	// inits the array of sorted posts (reverse alphabetical order)
+	init_sorted () {
+		this.sorted = Object.keys(this.posts);
+		this.sorted.sort();
+		this.sorted.reverse();
+		this.length = this.sorted.length;
+		for (var i = 0; i < this.length; i++) {
+			this.posts[this.sorted[i]].id = i;
 		}
 	}
-};
 
-DB.prototype.add_update_new = function add_update_new (posts) {
-	// add files that don't exist in the database to the database
-	// additionally, update files that were modified
-	var pathname = "";
-	for (var i = 0, len = posts.length; i < len; i++) {
-		pathname = path.join(this.pathname, "posts", posts[i]);
-		if (!(this.exists(posts[i]))) {
-			this.posts[posts[i]] = new Post(pathname);
-		} else if (fs.statSync(pathname).mtime > this.posts[posts[i]].mtime) {
-			this.posts[posts[i]].update();
+	// reload the files
+	update () {
+		var posts = fs.readdirSync(path.join(this.pathname, "posts"));
+		var hash = array_to_object(posts);
+		this.purge_non_existent(hash);
+		this.add_update_new(posts);
+		this.init_sorted();
+	}
+
+	purge_non_existent (existent) {
+		// remove files that no longer exist from the database
+		for (var key in this.posts) {
+			if (this.posts.hasOwnProperty(key) && !(key in existent)) {
+				delete this.posts[key];
+			}
 		}
 	}
-};
 
-// run a query on the data
-// q: a URI query
-DB.prototype.query = function query (q, callback) {
-	var results = new Array();
-	var counter = conf.blog.posts_per_page;
-	var i = 0;
-	var step = 1;
-	var cpost;
+	add_update_new (posts) {
+		// add files that don't exist in the database to the database
+		// additionally, update files that were modified
+		var pathname = "";
+		for (var i = 0, len = posts.length; i < len; i++) {
+			pathname = path.join(this.pathname, "posts", posts[i]);
+			if (!(this.exists(posts[i]))) {
+				this.posts[posts[i]] = new Post(pathname);
+			} else if (fs.statSync(pathname).mtime > this.posts[posts[i]].mtime) {
+				this.posts[posts[i]].update();
+			}
+		}
+	}
 
-	if (q.newer && q.older) {
-		q.newer = null;
-		q.older = null;
-	} else if (q.newer) {
-		q.newer = parseInt(q.newer, 10);
-		if (Number.isInteger(q.newer)) {
-			i = q.newer - 1;
-			step = -1;
-		} else {
+	// run a query on the data
+	// q: a URI query
+	query (q, callback) {
+		var results = new Array();
+		var counter = conf.blog.posts_per_page;
+		var i = 0;
+		var step = 1;
+		var cpost;
+
+		if (q.newer && q.older) {
 			q.newer = null;
-		}
-	} else if (q.older) {
-		q.older = parseInt (q.older, 10);
-		if (Number.isInteger(q.older)) {
-			i = q.older + 1;
-		} else {
 			q.older = null;
+		} else if (q.newer) {
+			q.newer = parseInt(q.newer, 10);
+			if (Number.isInteger(q.newer)) {
+				i = q.newer - 1;
+				step = -1;
+			} else {
+				q.newer = null;
+			}
+		} else if (q.older) {
+			q.older = parseInt (q.older, 10);
+			if (Number.isInteger(q.older)) {
+				i = q.older + 1;
+			} else {
+				q.older = null;
+			}
 		}
-	}
 
-	if (q.category) {
-		for (; i >= 0 && i < this.length && counter > 0; i += step) {
-			cpost = this.posts[this.sorted[i]];
-			if (cpost.has_category(q.category)) {
+		if (q.category) {
+			for (; i >= 0 && i < this.length && counter > 0; i += step) {
+				cpost = this.posts[this.sorted[i]];
+				if (cpost.has_category(q.category)) {
+					results.push(cpost);
+					counter -= 1;
+				}
+			}
+		} else {
+			for (; i >= 0 && i < this.length && counter > 0; i += step) {
+				cpost = this.posts[this.sorted[i]];
 				results.push(cpost);
 				counter -= 1;
 			}
 		}
-	} else {
-		for (; i >= 0 && i < this.length && counter > 0; i += step) {
-			cpost = this.posts[this.sorted[i]];
-			results.push(cpost);
-			counter -= 1;
+		if (step === -1) {
+			results.reverse();
 		}
+		callback(null, results);
 	}
-	if (step === -1) {
-		results.reverse();
+
+	// return whether post exists in database
+	exists(post) {
+		return (post in this.posts);
 	}
-	callback(null, results);
-};
 
-// return whether post exists in database
-DB.prototype.exists = function exists(post) {
-	return (post in this.posts);
-};
-
-// get post from database
-DB.prototype.get = function get (post) {
-	return (this.posts[post]);
-};
+	// get post from database
+	get (post) {
+		return (this.posts[post]);
+	}
+}
 
 // array[index] = val → object[val] = index
 function array_to_object (arr) {
@@ -252,70 +256,72 @@ function array_to_object (arr) {
 	return obj;
 }
 
-function code_response (num, msg) {
-	return {
-		code: num,
-		message: {"Content-type": "text/plain"},
-		data: msg ? msg : "" + num
-	};
-}
+class ResponseConf {
+	static code (num, msg) {
+		return {
+			code: num,
+			message: {"Content-type": "text/plain"},
+			data: msg ? msg : "" + num
+		};
+	}
 
-function rss_response (results) {
-	return {
-		code: 200,
-		message: {"Content-type": "application/rss+xml"},
-		data: rss({
-			blog: conf.blog,
-			host: conf.http.host,
-			posts: results
-		})
-	};
-}
+	static rss (results) {
+		return {
+			code: 200,
+			message: {"Content-type": "application/rss+xml"},
+			data: Render.rss({
+				blog: conf.blog,
+				host: conf.http.host,
+				posts: results
+			})
+		};
+	}
 
-function static_response (pathname) {
-	return {
-		code: 200,
-		message: {
-			"Content-type": determine_mime_type(pathname)
-		},
-		data: fs.createReadStream(pathname)
-	};
-}
+	static file (pathname) {
+		return {
+			code: 200,
+			message: {
+				"Content-type": determine_mime_type(pathname)
+			},
+			data: fs.createReadStream(pathname)
+		};
+	}
 
-function post_response (name) {
-	return {
-		code: 200,
-		message: {"Content-type": "text/html"},
-		data: template({
-			blog: conf.blog,
-			type: "element",
-			post: data.get(name)
-		})
-	};
-}
+	static post (name) {
+		return {
+			code: 200,
+			message: {"Content-type": "text/html"},
+			data: Render.page({
+				blog: conf.blog,
+				type: "element",
+				post: data.get(name)
+			})
+		};
+	}
 
-function post_list_response (results, query) {
-	return {
-		code: 200,
-		message: {"Content-type": "text/html"},
-		data: template({
-			blog: conf.blog,
-			type: "collection",
-			category: query.category || null,
-			posts: results
-		})
-	};
-}
+	static post_list (results, query) {
+		return {
+			code: 200,
+			message: {"Content-type": "text/html"},
+			data: Render.page({
+				blog: conf.blog,
+				type: "collection",
+				category: query.category || null,
+				posts: results
+			})
+		};
+	}
 
-function empty_page_response () {
-	return {
-		code: 404,
-		message: {"Content-type": "text/html"},
-		data: template({
-			blog: conf.blog,
-			type: "empty"
-		})
-	};
+	static empty_page () {
+		return {
+			code: 404,
+			message: {"Content-type": "text/html"},
+			data: Render.page({
+				blog: conf.blog,
+				type: "empty"
+			})
+		};
+	}
 }
 
 // return the mime type of a file
@@ -332,12 +338,12 @@ function determine_mime_type (path) {
 function get_posts_collection (query, callback) {
 	data.query(query, function (err, results) {
 		if (err) {
-			callback(code_response (500, err.message));
+			callback(ResponseConf.code (500, err.message));
 		} else if (results.length > 0) {
-			callback(post_list_response(results, query));
+			callback(ResponseConf.post_list(results, query));
 		} else {
 			// nothing found
-			return callback(empty_page_response());
+			return callback(ResponseConf.empty_page());
 		}
 	});
 }
@@ -345,9 +351,9 @@ function get_posts_collection (query, callback) {
 // render the page for GET /posts/[postname]
 function get_posts_element (name, callback) {
 	if (data.exists(name)) {
-		callback(post_response(name));
+		callback(ResponseConf.post(name));
 	} else {
-		callback(empty_page_response());
+		callback(ResponseConf.empty_page());
 	}
 }
 
@@ -355,9 +361,9 @@ function get_posts_element (name, callback) {
 function get_rss_feed (callback) {
 	data.query({}, function (err, results) {
 		if (results.length === 0) {
-			callback(code_response(404));
+			callback(ResponseConf.code(404));
 		} else {
-			callback(rss_response(results));
+			callback(ResponseConf.rss(results));
 		}
 	});
 }
@@ -366,16 +372,16 @@ function get_static_element (what, callback) {
 	var pathname = path.join(conf.fs.dir, "static", what);
 	fs.exists(pathname, function (exists) {
 		if (!exists) {
-			return callback(code_response(404, "Element doesn't exist"));
+			return callback(ResponseConf.code(404, "Element doesn't exist"));
 		} else {
-			return callback(static_response(pathname));
+			return callback(ResponseConf.file(pathname));
 		}
 	});
 }
 
 function request_root (req, res) {
 	if (req.method !== "GET") {
-		res.serve(code_response(405, "Only GET methods allowed"));
+		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
 	} else {
 		get_posts_collection({}, res.serve.bind(res));
 	}
@@ -383,7 +389,7 @@ function request_root (req, res) {
 
 function request_posts_listing (req, res) {
 	if (req.method !== "GET") {
-		res.serve(code_response(405, "Only GET methods allowed"));
+		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
 	} else {
 		get_posts_collection(req.url.query, res.serve.bind(res));
 	}
@@ -391,7 +397,7 @@ function request_posts_listing (req, res) {
 
 function request_a_post (req, res) {
 	if (req.method !== "GET") {
-		res.serve(code_response(405, "Only GET methods allowed"));
+		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
 	} else {
 		get_posts_element(req.url.basename, res.serve.bind(res));
 	}
@@ -399,7 +405,7 @@ function request_a_post (req, res) {
 
 function request_static (req, res) {
 	if (req.method !== "GET") {
-		res.serve(code_response(405, "Only GET methods allowed"));
+		res.serve(ResponseConf.code(405, "Only GET methods allowed"));
 	} else {
 		get_static_element(req.url.basename, res.serve.bind(res));
 	}
@@ -407,11 +413,11 @@ function request_static (req, res) {
 
 function request_a_feed (req, res) {
 	if (req.method !== "GET") {
-		res.serve(code_response(405, "Only GET methods are allowed"));
+		res.serve(ResponseConf.code(405, "Only GET methods are allowed"));
 	} else if (req.url.basename === "rss.xml") {
 		get_rss_feed(res.serve.bind(res));
 	} else {
-		res.serve(code_response(404, "Not found"));
+		res.serve(ResponseConf.code(404, "Not found"));
 	}
 }
 
@@ -431,7 +437,7 @@ function request_listener (req, res) {
 	} else if (req.url.pathname !== "/feeds" && req.url.pathname.startsWith("/feeds")) {
 		request_a_feed(req, res);
 	} else {
-		res.serve(code_response(404, "Not found"));
+		res.serve(ResponseConf.code(404, "Not found"));
 	}
 }
 
@@ -461,14 +467,14 @@ function HUP_listener () {
 }
 
 function init_templates () {
-	template = dot.template(
+	Render.page = dot.template(
 		fs.readFileSync(
 			path.join(conf.fs.dir, "/template.html"),
 			{"encoding": "utf-8"}
 		)
 	);
 
-	rss = dot.template(
+	Render.rss = dot.template(
 		fs.readFileSync(
 			path.join(conf.fs.dir, "/rss.xml"),
 			{"encoding": "utf-8"}

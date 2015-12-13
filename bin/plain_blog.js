@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* jshint esnext:true */
 /* jshint -W009 */
 /* jshint -W010 */
 /* jshint -W069 */
@@ -93,20 +94,20 @@ function determine_mime_type (path) {
 
 // serve a response
 // conf: a response configuration object
-http.ServerResponse.prototype.serve = function serve (conf) {
+function serve (res, conf) {
 	// almost everything supports gzip compressed responses nowadays
 	var gzip = zlib.createGzip();
 	conf.message["content-encoding"] = "gzip";
 
 	// we accept both streams and raw data
-	this.writeHead(conf.code, conf.message, conf.headers);
+	res.writeHead(conf.code, conf.message, conf.headers);
 	if (conf.data.constructor === fs.ReadStream) {
-		conf.data.pipe(gzip).pipe(this);
+		conf.data.pipe(gzip).pipe(res);
 	} else {
 		gzip.end(conf.data);
-		gzip.pipe(this);
+		gzip.pipe(res);
 	}
-};
+}
 
 // a blog entry
 class Post {
@@ -334,100 +335,94 @@ class ResponseConf {
 	}
 }
 
-class WebServer {
-	constructor (port, host) {
-		this.server = http.createServer(this.request_listener.bind(this));
-		this.server.listen(port, host);
+function request_listener (req, res) {
+	function DRY (conf) { serve(res, conf); }
+	req.url = url.parse(req.url, true);
+	req.url.basename = path.basename(req.url.pathname);
+	req.url.split = req.url.pathname.split("/");
+	req.url.split.shift();
+	switch (req.method) {
+		case "GET":
+			get(req, DRY);
+			break;
+		default:
+			res.serve(ResponseConf.code(405, "Only GET methods are allowed"));
+			break;
 	}
+}
 
-	request_listener (req, res) {
-		req.url = url.parse(req.url, true);
-		req.url.basename = path.basename(req.url.pathname);
-		req.url.split = req.url.pathname.split("/");
-		req.url.split.shift();
-		switch (req.method) {
-			case "GET":
-				this.get (req, res);
-				break;
-			default:
-				res.serve(ResponseConf.code(405, "Only GET methods are allowed"));
-				break;
-		}
-	}
-
-	get (req, res) {
-		switch (req.url.split.shift()) {
-			case "":
-				this.get_posts_collection({}, res.serve.bind(res));
-				break;
-			case "posts":
-				if (req.url.split.shift()) {
-					this.get_posts_element(req.url.basename, res.serve.bind(res));
-				} else {
-					this.get_posts_collection(req.url.query, res.serve.bind(res));
-				}
-				break;
-			case "static":
-				if (req.url.split.shift()) {
-					this.get_static_element(req.url.basename, res.serve.bind(res));
-				} else {
-					res.serve(ResponseConf.code(400));
-				}
-				break;
-			case "feeds":
-				if (req.url.split.shift() == "rss.xml") {
-					this.get_rss_feed(res.serve.bind(res));
-				} else {
-					res.serve(ResponseConf.code(404, "Not found"));
-				}
-				break;
-			default:
-				res.serve(ResponseConf.code(404, "Not found"));
-				break;
-		}
-	}
-
-	get_static_element (what, callback) {
-		var pathname = path.join(conf.fs.dir, "static", what);
-		fs.exists(pathname, function (exists) {
-			if (!exists) {
-				return callback(ResponseConf.code(404, "Element doesn't exist"));
+function get (req, callback) {
+	switch (req.url.split.shift()) {
+		case "":
+			get_posts_collection({}, callback);
+			break;
+		case "posts":
+			if (req.url.split.shift()) {
+				get_posts_element(req.url.basename, callback);
 			} else {
-				return callback(ResponseConf.file(pathname));
+				get_posts_collection(req.url.query, callback);
 			}
-		});
-	}
-
-	get_rss_feed (callback) {
-		data.query({}, function (err, results) {
-			if (results.length === 0) {
-				callback(ResponseConf.code(404));
+			break;
+		case "static":
+			if (req.url.split.shift()) {
+				get_static_element(req.url.basename, callback);
 			} else {
-				callback(ResponseConf.rss(results));
+				callback(ResponseConf.code(400));
 			}
-		});
+			break;
+		case "feeds":
+			if (req.url.split.shift() == "rss.xml") {
+				get_rss_feed(callback);
+			} else {
+				callback(ResponseConf.code(404, "Not found"));
+			}
+			break;
+		default:
+			callback(ResponseConf.code(404, "Not found"));
+			break;
 	}
+}
 
-	get_posts_element (name, callback) {
-		if (data.exists(name)) {
-			callback(ResponseConf.post(name));
+function get_static_element (what, callback) {
+	var pathname = path.join(conf.fs.dir, "static", what);
+	fs.exists(pathname, function (exists) {
+		if (!exists) {
+			return callback(ResponseConf.code(404, "Element doesn't exist"));
 		} else {
-			callback(ResponseConf.empty_page());
+			return callback(ResponseConf.file(pathname));
 		}
-	}
+	});
+}
 
-	get_posts_collection (query, callback) {
-		data.query(query, function (err, results) {
-			if (err) {
-				callback(ResponseConf.code (500, err.message));
-			} else if (results.length > 0) {
-				callback(ResponseConf.post_list(results, query));
-			} else {
-				// nothing found
-				return callback(ResponseConf.empty_page());
-			}
-		});
+function get_rss_feed (callback) {
+	data.query({}, function (err, results) {
+		if (results.length === 0) {
+			callback(ResponseConf.code(404));
+		} else {
+			callback(ResponseConf.rss(results));
+		}
+	});
+}
+
+function get_posts_element (name, callback) {
+	if (data.exists(name)) {
+		callback(ResponseConf.post(name));
+	} else {
+		callback(ResponseConf.empty_page());
 	}
+}
+
+function get_posts_collection (query, callback) {
+	data.query(query, function (err, results) {
+		if (err) {
+			callback(ResponseConf.code (500, err.message));
+		} else if (results.length > 0) {
+			callback(ResponseConf.post_list(results, query));
+		} else {
+			// nothing found
+			return callback(ResponseConf.empty_page());
+		}
+	});
 }
 
 function read_env_conf () {
@@ -477,7 +472,8 @@ function init_process () {
 }
 
 function init_server () {
-	new WebServer(conf.http.port, conf.http.host);
+	var server = http.createServer(request_listener);
+	server.listen(conf.http.port, conf.http.host);
 }
 
 function main () {

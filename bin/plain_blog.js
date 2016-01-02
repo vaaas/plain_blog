@@ -240,7 +240,7 @@ class DB {
 	}
 
 	// return whether post exists in database
-	exists(post) {
+	exists (post) {
 		return (post in this.posts);
 	}
 
@@ -251,70 +251,73 @@ class DB {
 }
 
 class ResponseConf {
+	constructor (code, message, data) {
+		this.code = code;
+		this.message = message;
+		this.data = data;
+	}
 	static code (num, msg) {
-		return {
-			code: num,
-			message: {"Content-type": "text/plain"},
-			data: msg ? msg : "" + num
-		};
+		return new ResponseConf(
+			num,
+			{"Content-type": "text/plain"},
+			msg ? msg : "" + num
+		);
 	}
 
 	static rss (results) {
-		return {
-			code: 200,
-			message: {"Content-type": "application/rss+xml"},
-			data: Render.rss({
+		return new ResponseConf(
+			200,
+			{"Content-type": "application/rss+xml"},
+			Render.rss({
 				blog: conf.blog,
 				host: conf.http.host,
 				posts: results
 			})
-		};
+		);
 	}
 
 	static file (pathname) {
-		return {
-			code: 200,
-			message: {
-				"Content-type": determine_mime_type(pathname)
-			},
-			data: fs.createReadStream(pathname)
-		};
+		return new ResponseConf(
+			200,
+			{"Content-type": determine_mime_type(pathname)},
+			fs.createReadStream(pathname)
+		);
 	}
 
 	static post (name) {
-		return {
-			code: 200,
-			message: {"Content-type": "text/html"},
-			data: Render.page({
+		return new ResponseConf(
+			200,
+			{"Content-type": "text/html"},
+			Render.page({
 				blog: conf.blog,
 				type: "element",
 				post: data.get(name)
 			})
-		};
+		);
 	}
 
 	static post_list (results, query) {
-		return {
-			code: 200,
-			message: {"Content-type": "text/html"},
-			data: Render.page({
+		return new ResponseConf(
+			200,
+			{"Content-type": "text/html"},
+			Render.page({
 				blog: conf.blog,
 				type: "collection",
 				category: query.category || null,
 				posts: results
 			})
-		};
+		);
 	}
 
 	static empty_page () {
-		return {
-			code: 404,
-			message: {"Content-type": "text/html"},
-			data: Render.page({
+		return new ResponseConf(
+			404,
+			{"Content-type": "text/html"},
+			Render.page({
 				blog: conf.blog,
 				type: "empty"
 			})
-		};
+		);
 	}
 }
 
@@ -413,6 +416,18 @@ class WebServer {
 }
 
 function read_env_conf () {
+	if (!(
+		process.env.PWD &&
+		process.env.PORT &&
+		process.env.HOST &&
+		process.env.TITLE &&
+		process.env.DESCRIPTION &&
+		process.env.KEYWORDS &&
+		process.env.AUTHOR &&
+		process.env.PPP
+	)) {
+		throw new Error("ERROR: couldn't pass configuration sanity check. Ensure that all of the following environment variables are provided: PWD, PORT, HOST, TITLE, DESCRIPTION, KEYWORDS, AUTHOR, PPP");
+	}
 	conf = {
 		fs: {
 			dir: process.env.PWD,
@@ -472,7 +487,12 @@ function main () {
 	init_templates();
 	console.log("Starting server.");
 	init_server();
-	console.log("Server listening to " + conf.http.host + ":" + conf.http.port);
+	console.log("Server started successfully and listening to " + conf.http.host + ":" + conf.http.port);
 }
 
-main();
+try {
+	main();
+} catch (e) {
+	console.error("Something went wrong during startup.");
+	console.error(e.name, e.message);
+}

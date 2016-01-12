@@ -416,31 +416,19 @@ class WebServer {
 }
 
 function read_env_conf () {
-	if (!(
-		process.env.PWD &&
-		process.env.PORT &&
-		process.env.HOST &&
-		process.env.TITLE &&
-		process.env.DESCRIPTION &&
-		process.env.KEYWORDS &&
-		process.env.AUTHOR &&
-		process.env.PPP
-	)) {
-		throw new Error("ERROR: couldn't pass configuration sanity check. Ensure that all of the following environment variables are provided: PWD, PORT, HOST, TITLE, DESCRIPTION, KEYWORDS, AUTHOR, PPP");
-	}
 	conf = {
 		fs: {
-			dir: process.env.PWD,
+			dir: process.env.PWD || "/tmp",
 		},
 		http: {
 			port: process.env.PORT || 50000,
 			host: process.env.HOST || "localhost",
 		},
 		blog: {
-			title: process.env.TITLE,
-			description: process.env.DESCRIPTION,
-			keywords: process.env.KEYWORDS.split(", "),
-			author: process.env.AUTHOR,
+			title: process.env.TITLE || "User didn't configure blog title",
+			description: process.env.DESCRIPTION || "USer didn't configure blog description",
+			keywords: process.env.KEYWORDS ? process.env.KEYWORDS.split(", ") : ["user didn't configure blog keywords"],
+			author: process.env.AUTHOR || "User didn't configure blog author",
 			posts_per_page: process.env.PPP || 10,
 		}
 	};
@@ -469,30 +457,35 @@ function init_templates () {
 	};
 }
 
-function init_process () {
-	process.on("SIGHUP", HUP_listener);
-}
-
 function init_server () {
 	new WebServer(conf.http.port, conf.http.host);
 }
 
 function main () {
-	init_process();
-	console.log("Configuring.");
+	process.on("SIGHUP", HUP_listener);
 	read_env_conf();
-	console.log("Parsing posts.");
-	data = new DB(path.join(conf.fs.dir, "/posts"));
-	console.log("Compiling templates.");
-	init_templates();
-	console.log("Starting server.");
-	init_server();
-	console.log("Server started successfully and listening to " + conf.http.host + ":" + conf.http.port);
+	try {
+		data = new DB(path.join(conf.fs.dir, "/posts"));
+	} catch (e) {
+		console.error("Couldn't initialise databse", e.name, e.message);
+		throw new Error();
+	}
+	try {
+		init_templates();
+	} catch (e) {
+		console.error("Couldn't initialise templates", e.name, e.message);
+		throw new Error();
+	}
+	try {
+		init_server();
+	} catch (e) {
+		console.error("Couldn't start server", e.name, e.message);
+		throw new Error();
+	}
+	console.log(`Server listening to ${conf.http.host}:${conf.http.port}`);
 }
-
 try {
 	main();
 } catch (e) {
-	console.error("Something went wrong during startup.");
-	console.error(e.name, e.message);
+	process.exit(1);
 }

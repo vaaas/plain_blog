@@ -17,7 +17,7 @@ const dot = require("dot");
 const cheerio = require("cheerio");
 
 // globals
-var Render, data, conf;
+var Render, Data, Conf;
 
 const mime_types = {
 	".html": "text/html",
@@ -193,7 +193,7 @@ class DB {
 	// q: a URI query
 	query (q, callback) {
 		var results = new Array();
-		var counter = conf.blog.posts_per_page;
+		var counter = Conf.blog.posts_per_page;
 		var i = 0;
 		var step = 1;
 		var cpost;
@@ -256,6 +256,7 @@ class ResponseConf {
 		this.message = message;
 		this.data = data;
 	}
+
 	static code (num, msg) {
 		return new ResponseConf(
 			num,
@@ -269,8 +270,8 @@ class ResponseConf {
 			200,
 			{"Content-type": "application/rss+xml"},
 			Render.rss({
-				blog: conf.blog,
-				host: conf.http.host,
+				blog: Conf.blog,
+				host: Conf.http.host,
 				posts: results
 			})
 		);
@@ -289,9 +290,9 @@ class ResponseConf {
 			200,
 			{"Content-type": "text/html"},
 			Render.page({
-				blog: conf.blog,
+				blog: Conf.blog,
 				type: "element",
-				post: data.get(name)
+				post: Data.get(name)
 			})
 		);
 	}
@@ -301,7 +302,7 @@ class ResponseConf {
 			200,
 			{"Content-type": "text/html"},
 			Render.page({
-				blog: conf.blog,
+				blog: Conf.blog,
 				type: "collection",
 				category: query.category || null,
 				posts: results
@@ -314,109 +315,96 @@ class ResponseConf {
 			404,
 			{"Content-type": "text/html"},
 			Render.page({
-				blog: conf.blog,
+				blog: Conf.blog,
 				type: "empty"
 			})
 		);
 	}
 }
 
-class WebServer {
-	constructor (port, host) {
-		var self = this;
-		this.port = port;
-		this.host = host;
-		this.server = http.createServer(function (req, res) {
-			self.request_listener(req, res);
-		});
-		this.server.listen(this.port, this.host);
-	}
+// serve a response
+// conf: a response configuration object
+function serve (res, conf) {
+	// almost everything supports gzip compressed responses nowadays
+	var gzip = zlib.createGzip();
+	conf.message["content-encoding"] = "gzip";
 
-	// serve a response
-	// conf: a response configuration object
-	serve (res, conf) {
-		// almost everything supports gzip compressed responses nowadays
-		var gzip = zlib.createGzip();
-		conf.message["content-encoding"] = "gzip";
-
-		// we accept both streams and raw data
-		res.writeHead(conf.code, conf.message, conf.headers);
-		if (conf.data.constructor === fs.ReadStream) {
-			conf.data.pipe(gzip).pipe(res);
-		} else {
-			gzip.end(conf.data);
-			gzip.pipe(res);
-		}
-	}
-
-	request_listener (req, res) {
-		var self = this;
-		function DRY (conf) { self.serve(res, conf); }
-		req.url = url.parse(req.url, true);
-		req.url.basename = path.basename(req.url.pathname);
-
-		if (req.method !== "GET") {
-			return DRY(ResponseConf.code(405));
-		} else if (req.url.pathname === "/") {
-			this.get_posts_collection({}, DRY);
-		} else if (req.url.pathname === "/posts") {
-			this.get_posts_collection(req.url.query, DRY);
-		} else if (req.url.pathname.startsWith("/posts/")) {
-			this.get_posts_element(req.url.basename, DRY);
-		} else if (req.url.pathname.startsWith("/static/")) {
-			this.get_static_element(req.url.pathname, DRY);
-		} else if (req.url.pathname === "/feeds/rss.xml") {
-			this.get_rss_feed(DRY);
-		} else {
-			return DRY(ResponseConf.code(404));
-		}
-	}
-
-	get_posts_collection (query, callback) {
-		data.query(query, function (err, results) {
-			if (err) {
-				callback(ResponseConf.code (500, err.message));
-			} else if (results.length > 0) {
-				callback(ResponseConf.post_list(results, query));
-			} else {
-				// nothing found
-				return callback(ResponseConf.empty_page());
-			}
-		});
-	}
-
-	get_posts_element (name, callback) {
-		if (data.exists(name)) {
-			callback(ResponseConf.post(name));
-		} else {
-			callback(ResponseConf.empty_page());
-		}
-	}
-
-	get_static_element (what, callback) {
-		var pathname = path.join(conf.fs.dir, what);
-		fs.exists(pathname, function (exists) {
-			if (!exists) {
-				return callback(ResponseConf.code(404, "Element doesn't exist"));
-			} else {
-				return callback(ResponseConf.file(pathname));
-			}
-		});
-	}
-
-	get_rss_feed (callback) {
-		data.query({}, function (err, results) {
-			if (results.length === 0) {
-				callback(ResponseConf.code(404));
-			} else {
-				callback(ResponseConf.rss(results));
-			}
-		});
+	// we accept both streams and raw data
+	res.writeHead(conf.code, conf.message, conf.headers);
+	if (conf.data.constructor === fs.ReadStream) {
+		conf.data.pipe(gzip).pipe(res);
+	} else {
+		gzip.end(conf.data);
+		gzip.pipe(res);
 	}
 }
 
+function request_listener (req, res) {
+	function DRY (conf) { serve(res, conf); }
+	req.url = url.parse(req.url, true);
+	req.url.basename = path.basename(req.url.pathname);
+
+	if (req.method !== "GET") {
+		return DRY(ResponseConf.code(405));
+	} else if (req.url.pathname === "/") {
+		get_posts_collection({}, DRY);
+	} else if (req.url.pathname === "/posts") {
+		get_posts_collection(req.url.query, DRY);
+	} else if (req.url.pathname.startsWith("/posts/")) {
+		get_posts_element(req.url.basename, DRY);
+	} else if (req.url.pathname.startsWith("/static/")) {
+		get_static_element(req.url.pathname, DRY);
+	} else if (req.url.pathname === "/feeds/rss.xml") {
+		get_rss_feed(DRY);
+	} else {
+		return DRY(ResponseConf.code(404));
+	}
+}
+
+function get_posts_collection (query, callback) {
+	Data.query(query, function (err, results) {
+		if (err) {
+			callback(ResponseConf.code (500, err.message));
+		} else if (results.length > 0) {
+			callback(ResponseConf.post_list(results, query));
+		} else {
+			// nothing found
+			return callback(ResponseConf.empty_page());
+		}
+	});
+}
+
+function get_posts_element (name, callback) {
+	if (Data.exists(name)) {
+		callback(ResponseConf.post(name));
+	} else {
+		callback(ResponseConf.empty_page());
+	}
+}
+
+function get_static_element (what, callback) {
+	var pathname = path.join(Conf.fs.dir, what);
+	fs.exists(pathname, function (exists) {
+		if (!exists) {
+			return callback(ResponseConf.code(404, "Element doesn't exist"));
+		} else {
+			return callback(ResponseConf.file(pathname));
+		}
+	});
+}
+
+function get_rss_feed (callback) {
+	Data.query({}, function (err, results) {
+		if (results.length === 0) {
+			callback(ResponseConf.code(404));
+		} else {
+			callback(ResponseConf.rss(results));
+		}
+	});
+}
+
 function read_env_conf () {
-	conf = {
+	Conf = {
 		fs: {
 			dir: process.env.PWD || "/tmp",
 		},
@@ -437,20 +425,20 @@ function read_env_conf () {
 function HUP_listener () {
 	read_env_conf();
 	init_templates();
-	data.update();
+	Data.update();
 }
 
 function init_templates () {
 	Render = {
 		page: dot.template(
 			fs.readFileSync(
-				path.join(conf.fs.dir, "/template.html"),
+				path.join(Conf.fs.dir, "/template.html"),
 				{"encoding": "utf-8"}
 			)
 		),
 		rss: dot.template(
 			fs.readFileSync(
-				path.join(conf.fs.dir, "/rss.xml"),
+				path.join(Conf.fs.dir, "/rss.xml"),
 				{"encoding": "utf-8"}
 			)
 		)
@@ -458,14 +446,15 @@ function init_templates () {
 }
 
 function init_server () {
-	new WebServer(conf.http.port, conf.http.host);
+	var server = http.createServer(request_listener);
+	server.listen(Conf.http.port, Conf.http.host);
 }
 
 function main () {
 	process.on("SIGHUP", HUP_listener);
 	read_env_conf();
 	try {
-		data = new DB(path.join(conf.fs.dir, "/posts"));
+		Data = new DB(path.join(Conf.fs.dir, "/posts"));
 	} catch (e) {
 		console.error("Couldn't initialise databse", e.name, e.message);
 		throw new Error();
@@ -482,8 +471,9 @@ function main () {
 		console.error("Couldn't start server", e.name, e.message);
 		throw new Error();
 	}
-	console.log(`Server listening to ${conf.http.host}:${conf.http.port}`);
+	console.log(`Server listening to ${Conf.http.host}:${Conf.http.port}`);
 }
+
 try {
 	main();
 } catch (e) {

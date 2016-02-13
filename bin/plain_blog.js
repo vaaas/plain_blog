@@ -15,10 +15,7 @@ const url = require("url")
 const path = require("path")
 const dot = require("dot")
 const cheerio = require("cheerio")
-
-// globals
-let Render, Data, Conf
-let router
+const sqlite = require("sqlite3")
 
 const mime_types = {
 	".html": "text/html",
@@ -74,6 +71,7 @@ const mime_types = {
 	".3gpp": "video/3gpp",
 }
 
+// returns whether two arrays have the exact same children
 function array_identity (arr1, arr2) {
 	let len = arr1.length
 	if (len !== arr2.length) return false
@@ -82,14 +80,12 @@ function array_identity (arr1, arr2) {
 	return true
 }
 
-
-// array[index] = val → object[val] = index
 function array_to_object (arr) {
 	let obj = new Object()
 	for (let i = 0, len = arr.length; i < len; i++)
 		obj[arr[i]] = i
 	return obj
-}
+} 
 
 // return the mime type of a file
 function determine_mime_type (path) {
@@ -98,7 +94,83 @@ function determine_mime_type (path) {
 	else return "application/octet_stream"
 }
 
-// a blog entry
+class ResponseConf {
+	constructor (code, message, data) {
+		this.code = code
+		this.message = message
+		this.data = data
+	}
+}
+
+class Router extends Array {
+	indexOf (route) {
+		for (var i = 0, len = this.length; i < len; i++)
+			if (array_identity(route, this[i].match))
+				return i
+		return -1
+	}
+
+	add_route (method, route, handler) {
+		route = route.split("/").slice(1)
+		let i = this.indexOf(route)
+		if (i >= 0) this[i][method] = handler
+		else {
+			let obj = {}
+			obj["match"] = route
+			obj[method] = handler
+			this.push(obj)
+		}
+	}
+
+	match (req) {
+		for (let i = 0, len = this.length; i < len; i++) {
+			let match = this.match_route (req, this[i])
+			if (match === null) continue
+			else return match
+		}
+		return null
+	}
+
+	match_route (req, route) {
+		const method = req.method
+		const str = req.url.pathname.split("/").slice(1)
+		const match = route.match
+		if (str.length < match.length) return null
+		let params = []
+		let i = 0
+		let j = 0
+		while (i < str.length) {
+			if (match[j] === str[i]) {
+				i += 1
+				j += 1
+			} else if (match[j] === "*" && str[i].length > 0) {
+				params.push(str[i])
+				i += 1
+				j += 1
+			} else if (match[j] === "**" && str[i].length > 0) {
+				if (match[j+1]) {
+					let ind = str.indexOf(match[j+1], i)
+					if (ind === -1) return null
+					params.push(str.slice(i, ind).join("/"))
+					i = ind
+					j += 1
+				} else {
+					params.push(str.slice(i).join("/"))
+					i = str.length
+					j += 1
+				}
+			} else {
+				return null
+			}
+		}
+		if (route.hasOwnProperty(method)) {
+			return [route[method], params]
+		} else {
+			return undefined
+		}
+	}
+}
+
 class Post {
 	constructor (pathname) {
 		this.extract_data(pathname)
@@ -140,9 +212,9 @@ class Post {
 	}
 }
 
-// a data structure holding all the blog posts & metadata
-class DB {
-	constructor (pathname) {
+class Model {
+	constructor (pathname, posts_per_page) {
+		this.posts_per_page = posts_per_page
 		this.pathname = pathname
 		let posts = fs.readdirSync(this.pathname)
 		this.posts = new Object()
@@ -194,9 +266,9 @@ class DB {
 	// q: a URI query
 	query (q, callback) {
 		let results = new Array()
-		let counter = Conf.blog.posts_per_page
 		let i = 0
 		let step = 1
+		let counter = this.posts_per_page
 		let cpost
 
 		if (q.newer && q.older) {
@@ -244,14 +316,14 @@ class DB {
 	}
 }
 
-class ResponseConf {
-	constructor (code, message, data) {
-		this.code = code
-		this.message = message
-		this.data = data
+class View {
+	constructor (templates, host, blog) {
+		this.templates = templates
+		this.host = host
+		this.blog = blog
 	}
 
-	static code (num, msg) {
+	code (num, msg) {
 		return new ResponseConf(
 			num,
 			{"Content-type": "text/plain"},
@@ -259,19 +331,19 @@ class ResponseConf {
 		)
 	}
 
-	static rss (results) {
+	rss (results) {
 		return new ResponseConf(
 			200,
 			{"Content-type": "application/rss+xml"},
-			Render.rss({
-				blog: Conf.blog,
-				host: Conf.http.host,
+			this.templates.rss({
+				blog: this.blog,
+				host: this.host,
 				posts: results
 			})
 		)
 	}
 
-	static file (pathname) {
+	file (pathname) {
 		return new ResponseConf(
 			200,
 			{"Content-type": determine_mime_type(pathname)},
@@ -279,24 +351,24 @@ class ResponseConf {
 		)
 	}
 
-	static post (name) {
+	post (post) {
 		return new ResponseConf(
 			200,
 			{"Content-type": "text/html"},
-			Render.page({
-				blog: Conf.blog,
+			this.templates.index({
+				blog: this.blog,
 				type: "element",
-				post: Data.get(name)
+				post: post
 			})
 		)
 	}
 
-	static post_list (results, query) {
+	post_list (results, query) {
 		return new ResponseConf(
 			200,
 			{"Content-type": "text/html"},
-			Render.page({
-				blog: Conf.blog,
+			this.templates.index({
+				blog: this.blog,
 				type: "collection",
 				category: query.category || null,
 				posts: results
@@ -304,161 +376,107 @@ class ResponseConf {
 		)
 	}
 
-	static empty_page () {
+	empty_page () {
 		return new ResponseConf(
 			404,
 			{"Content-type": "text/html"},
-			Render.page({
-				blog: Conf.blog,
+			this.templates.index({
+				blog: this.blog,
 				type: "empty"
 			})
 		)
 	}
 }
 
-class Router {
-	constructor () {
-		this.routes = []
+class Controller {
+	constructor (model, view, port, hostname) {
+		this.model = model
+		this.view = view
+		this.router = this.init_router()
+		this.server = http.createServer(this.request_listener.bind(this))
+		this.server.listen(port, hostname)
 	}
 
-	indexOf (route) {
-		for (var i = 0, len = this.routes.length; i < len; i++)
-			if (array_identity(route, this.routes[i].match))
-				return i
-		return -1
+	init_router () {
+		const router = new Router()
+		router.add_route("GET", "/", this.get_posts_collection.bind(this))
+		router.add_route("GET", "/posts", this.get_posts_collection.bind(this))
+		router.add_route("GET", "/posts/*", this.get_posts_element.bind(this))
+		router.add_route("GET", "/static/**", this.get_static_element.bind(this))
+		router.add_route("GET", "/feeds/rss.xml", this.get_rss_feed.bind(this))
+		return router
 	}
 
-	add_route (method, route, handler) {
-		route = route.split("/").slice(1)
-		let i = this.indexOf(route)
-		if (i >= 0) this.routes[i][method] = handler
-		else {
-			let obj = {}
-			obj["match"] = route
-			obj[method] = handler
-			this.routes.push(obj)
+	// serve a response
+	// conf: a response configuration object
+	serve (res, conf) {
+		// we accept both streams and raw data
+		res.writeHead(conf.code, conf.message, conf.headers)
+		if (conf.data.constructor === fs.ReadStream) {
+			conf.data.pipe(res)
+		} else {
+			res.end(conf.data)
 		}
 	}
 
-	match (method, str) {
-		str = str.split("/").slice(1)
-		for (let i = 0, len = this.routes.length; i < len; i++) {
-			let match = this.match_route (method, str, this.routes[i])
-			if (match === null) continue
-			else return match
-		}
-		return null
+	request_listener (req, res) {
+		req.url = url.parse(req.url, true)
+		req.url.basename = path.basename(req.url.pathname)
+		let match = this.router.match(req)
+		if (match === null)
+			this.serve(res, this.view.code(404))
+		else if (match === undefined)
+			this.serve(res, this.view.code(405))
+		else
+			match[0](req, ...match[1], conf => this.serve(res, conf))
 	}
 
-	match_route (method, str, route) {
-		let match = route.match
-		if (str.length < match.length) return null
-		let params = []
-		let i = 0
-		let j = 0
-		while (i < str.length) {
-			if (match[j] === str[i]) {
-				i += 1
-				j += 1
-			} else if (match[j] === "*" && str[i].length > 0) {
-				params.push(str[i])
-				i += 1
-				j += 1
-			} else if (match[j] === "**" && str[i].length > 0) {
-				if (match[j+1]) {
-					let ind = str.indexOf(match[j+1], i)
-					if (ind === -1) return null
-					params.push(str.slice(i, ind).join("/"))
-					i = ind
-					j += 1
-				} else {
-					params.push(str.slice(i).join("/"))
-					i = str.length
-					j += 1
-				}
+	get_posts_collection (req, callback) {
+		let query = req.url.query
+		this.model.query(query, (err, results) => {
+			if (err) {
+				callback(this.view.code (500, err.message))
+			} else if (results.length > 0) {
+				callback(this.view.post_list(results, query))
 			} else {
-				return null
+				// nothing found
+				return callback(this.view.empty_page())
 			}
-		}
-		if (route.hasOwnProperty(method)) {
-			return [route[method], params]
+		})
+	}
+
+	get_posts_element (req, name, callback) {
+		if (this.model.exists(name)) {
+			callback(this.view.post(this.model.get(name)))
 		} else {
-			return undefined
+			callback(this.view.empty_page())
 		}
+	}
+
+	get_static_element (req, what, callback) {
+		let pathname = path.join("./static", what)
+		fs.exists(pathname, (exists) => {
+			if (!exists) {
+				return callback(this.view.code(404, "Element doesn't exist"))
+			} else {
+				return callback(this.view.file(pathname))
+			}
+		})
+	}
+
+	get_rss_feed (req, callback) {
+		this.model.query({}, (err, results) => {
+			if (results.length === 0) {
+				callback(this.view.code(404))
+			} else {
+				callback(this.view.rss(results))
+			}
+		})
 	}
 }
 
-// serve a response
-// conf: a response configuration object
-function serve (res, conf) {
-	// we accept both streams and raw data
-	res.writeHead(conf.code, conf.message, conf.headers)
-	if (conf.data.constructor === fs.ReadStream) {
-		conf.data.pipe(res)
-	} else {
-		res.end(conf.data)
-	}
-}
-
-function request_listener (req, res) {
-	function DRY (conf) { serve(res, conf) }
-	req.url = url.parse(req.url, true)
-	req.url.basename = path.basename(req.url.pathname)
-	let match = router.match(req.method, req.url.pathname)
-	if (match === null)
-		DRY(ResponseConf.code(404))
-	else
-		match[0](req, ...match[1], DRY)
-}
-
-function get_posts_collection (req, callback) {
-	let query = req.url.query
-	Data.query(query, function (err, results) {
-		if (err) {
-			callback(ResponseConf.code (500, err.message))
-		} else if (results.length > 0) {
-			callback(ResponseConf.post_list(results, query))
-		} else {
-			// nothing found
-			return callback(ResponseConf.empty_page())
-		}
-	})
-}
-
-function get_posts_element (req, name, callback) {
-	if (Data.exists(name)) {
-		callback(ResponseConf.post(name))
-	} else {
-		callback(ResponseConf.empty_page())
-	}
-}
-
-function get_static_element (req, what, callback) {
-	let pathname = path.join(Conf.fs.dir, "static", what)
-	fs.exists(pathname, function (exists) {
-		if (!exists) {
-			return callback(ResponseConf.code(404, "Element doesn't exist"))
-		} else {
-			return callback(ResponseConf.file(pathname))
-		}
-	})
-}
-
-function get_rss_feed (req, callback) {
-	Data.query({}, function (err, results) {
-		if (results.length === 0) {
-			callback(ResponseConf.code(404))
-		} else {
-			callback(ResponseConf.rss(results))
-		}
-	})
-}
-
-function read_env_conf () {
-	Conf = {
-		fs: {
-			dir: process.env.PWD || "/tmp",
-		},
+function Conf () {
+	return {
 		http: {
 			port: process.env.PORT || 50000,
 			host: process.env.HOST || "localhost",
@@ -473,69 +491,21 @@ function read_env_conf () {
 	}
 }
 
-function HUP_listener () {
-	read_env_conf()
-	init_templates()
-	Data.update()
-}
-
-function TERM_listener () {
-	process.exit()
-}
-
-function INT_listener () {
-	process.exit()
-}
-
-function cleanup () {
-	//empty
-}
-
-function init_process() {
-	process.on("SIGHUP", HUP_listener)
-	process.on("SIGINT", INT_listener)
-	process.on("SIGTERM", TERM_listener)
-	process.on("exit", cleanup)
-}
-
-function init_templates () {
-	Render = {
-		page: dot.template(
-			fs.readFileSync(
-				path.join(Conf.fs.dir, "/template.html"),
-				{"encoding": "utf-8"}
-			)
-		),
-		rss: dot.template(
-			fs.readFileSync(
-				path.join(Conf.fs.dir, "/rss.xml"),
-				{"encoding": "utf-8"}
-			)
-		)
-	}
-}
-
-function init_server () {
-	const server = http.createServer(request_listener)
-	router = new Router()
-	router.add_route("GET", "/", get_posts_collection)
-	router.add_route("GET", "/posts", get_posts_collection)
-	router.add_route("GET", "/posts/*", get_posts_element)
-	router.add_route("GET", "/static/**", get_static_element)
-	router.add_route("GET", "/feeds/rss.xml", get_rss_feed)
-	server.listen(Conf.http.port, Conf.http.host)
-}
-
 function main () {
-	read_env_conf()
-	Data = new DB(path.join(Conf.fs.dir, "/posts"))
-	init_templates()
-	init_server()
-	console.log(`Server listening to ${Conf.http.host}:${Conf.http.port}`)
+	const conf = new Conf()
+	const model = new Model("./posts", conf.blog.posts_per_page)
+	const view = new View(
+		dot.process({path: "./templates"}),
+		conf.http.host,
+		conf.blog
+	)
+	const controller = new Controller (
+		model,
+		view,
+		conf.http.port,
+		conf.http.host
+	)
+	console.log(`Server listening to ${conf.http.host}:${conf.http.port}`)
 }
 
-try {
-	main()
-} catch (e) {
-	process.exit(1)
-}
+main()

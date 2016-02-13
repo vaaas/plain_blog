@@ -428,48 +428,47 @@ class Controller {
 		else if (match === undefined)
 			this.serve(res, this.view.code(405))
 		else
-			match[0](req, ...match[1], conf => this.serve(res, conf))
+			match[0](req, res, ...match[1])
 	}
 
-	get_posts_collection (req, callback) {
+	get_posts_collection (req, res) {
 		let query = req.url.query
 		this.model.query(query, (err, results) => {
 			if (err) {
-				callback(this.view.code (500, err.message))
+				this.serve(res, this.view.code (500, err.message))
 			} else if (results.length > 0) {
-				callback(this.view.post_list(results, query))
+				this.serve(res, this.view.post_list(results, query))
 			} else {
-				// nothing found
-				return callback(this.view.empty_page())
+				this.serve(res, this.view.empty_page())
 			}
 		})
 	}
 
-	get_posts_element (req, name, callback) {
+	get_posts_element (req, res, name) {
 		if (this.model.exists(name)) {
-			callback(this.view.post(this.model.get(name)))
+			this.serve(res, this.view.post(this.model.get(name)))
 		} else {
-			callback(this.view.empty_page())
+			this.serve(res, this.view.empty_page())
 		}
 	}
 
-	get_static_element (req, what, callback) {
+	get_static_element (req, res, what) {
 		let pathname = path.join("./static", what)
 		fs.exists(pathname, (exists) => {
 			if (!exists) {
-				return callback(this.view.code(404, "Element doesn't exist"))
+				this.serve(res, this.view.code(404, "Element doesn't exist"))
 			} else {
-				return callback(this.view.file(pathname))
+				this.serve(res, this.view.file(pathname))
 			}
 		})
 	}
 
-	get_rss_feed (req, callback) {
+	get_rss_feed (req, res) {
 		this.model.query({}, (err, results) => {
 			if (results.length === 0) {
-				callback(this.view.code(404))
+				this.serve(res, this.view.code(404))
 			} else {
-				callback(this.view.rss(results))
+				this.serve(res, this.view.rss(results))
 			}
 		})
 	}

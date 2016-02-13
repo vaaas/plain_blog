@@ -479,6 +479,25 @@ function HUP_listener () {
 	Data.update()
 }
 
+function TERM_listener () {
+	process.exit()
+}
+
+function INT_listener () {
+	process.exit()
+}
+
+function cleanup () {
+	//empty
+}
+
+function init_process() {
+	process.on("SIGHUP", HUP_listener)
+	process.on("SIGINT", INT_listener)
+	process.on("SIGTERM", TERM_listener)
+	process.on("exit", cleanup)
+}
+
 function init_templates () {
 	Render = {
 		page: dot.template(
@@ -508,26 +527,10 @@ function init_server () {
 }
 
 function main () {
-	process.on("SIGHUP", HUP_listener)
 	read_env_conf()
-	try {
-		Data = new DB(path.join(Conf.fs.dir, "/posts"))
-	} catch (e) {
-		console.error("Couldn't initialise databse", e.name, e.message)
-		throw new Error()
-	}
-	try {
-		init_templates()
-	} catch (e) {
-		console.error("Couldn't initialise templates", e.name, e.message)
-		throw new Error()
-	}
-	try {
-		init_server()
-	} catch (e) {
-		console.error("Couldn't start server", e.name, e.message)
-		throw new Error()
-	}
+	Data = new DB(path.join(Conf.fs.dir, "/posts"))
+	init_templates()
+	init_server()
 	console.log(`Server listening to ${Conf.http.host}:${Conf.http.port}`)
 }
 

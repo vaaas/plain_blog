@@ -12,7 +12,6 @@
 const http = require("http")
 const fs = require("fs")
 const url = require("url")
-const zlib = require("zlib")
 const path = require("path")
 const dot = require("dot")
 const cheerio = require("cheerio")
@@ -74,6 +73,15 @@ const mime_types = {
 	".3gp": "video/3gpp",
 	".3gpp": "video/3gpp",
 }
+
+function array_identity (arr1, arr2) {
+	let len = arr1.length
+	if (len !== arr2.length) return false
+	for (let i = 0; i < len; i++)
+		if (arr1[i] !== arr2[i]) return false
+	return true
+}
+
 
 // array[index] = val → object[val] = index
 function array_to_object (arr) {
@@ -315,13 +323,13 @@ class Router {
 
 	indexOf (route) {
 		for (var i = 0, len = this.routes.length; i < len; i++)
-			if (this.routes[i].match === route) return i
+			if (array_identity(route, this.routes[i].match))
+				return i
 		return -1
 	}
 
 	add_route (method, route, handler) {
 		route = route.split("/").slice(1)
-		if (route[0] === "") route = ["root"]
 		let i = this.indexOf(route)
 		if (i >= 0) this.routes[i][method] = handler
 		else {
@@ -334,69 +342,61 @@ class Router {
 
 	match (method, str) {
 		str = str.split("/").slice(1)
-		if (str[0] === "") str = ["root"]
 		for (let i = 0, len = this.routes.length; i < len; i++) {
-			let match = this.match_route (str, method, this.routes[i])
+			let match = this.match_route (method, str, this.routes[i])
 			if (match === null) continue
 			else return match
 		}
 		return null
 	}
 
-	match_route (str, method, route) {
+	match_route (method, str, route) {
 		let match = route.match
+		if (str.length < match.length) return null
 		let params = []
 		let i = 0
 		let j = 0
 		while (i < str.length) {
-			switch(match[j]) {
-			case str[i]:
-				i++
-				j++
-				break
-			case "*":
+			if (match[j] === str[i]) {
+				i += 1
+				j += 1
+			} else if (match[j] === "*" && str[i].length > 0) {
 				params.push(str[i])
-				i++
-				j++		
-				break
-			case "**":
+				i += 1
+				j += 1
+			} else if (match[j] === "**" && str[i].length > 0) {
 				if (match[j+1]) {
 					let ind = str.indexOf(match[j+1], i)
 					if (ind === -1) return null
 					params.push(str.slice(i, ind).join("/"))
 					i = ind
-					j++
+					j += 1
 				} else {
 					params.push(str.slice(i).join("/"))
 					i = str.length
+					j += 1
 				}
-				break
-			default:
+			} else {
 				return null
-				break
 			}
 		}
-		if (route.hasOwnProperty(method))
+		if (route.hasOwnProperty(method)) {
 			return [route[method], params]
-		else
-			return null
+		} else {
+			return undefined
+		}
 	}
 }
 
 // serve a response
 // conf: a response configuration object
 function serve (res, conf) {
-	// almost everything supports gzip compressed responses nowadays
-	let gzip = zlib.createGzip()
-	conf.message["content-encoding"] = "gzip"
-
 	// we accept both streams and raw data
 	res.writeHead(conf.code, conf.message, conf.headers)
 	if (conf.data.constructor === fs.ReadStream) {
-		conf.data.pipe(gzip).pipe(res)
+		conf.data.pipe(res)
 	} else {
-		gzip.end(conf.data)
-		gzip.pipe(res)
+		res.end(conf.data)
 	}
 }
 
@@ -499,11 +499,11 @@ function init_templates () {
 function init_server () {
 	const server = http.createServer(request_listener)
 	router = new Router()
-	router.add_route("/", "GET", get_posts_collection)
-	router.add_route("/posts", "GET", get_posts_collection)
-	router.add_route("/posts/*", "GET", get_posts_element)
-	router.add_route("/static/**", "GET", get_static_element)
-	router.add_route("/feeds/rss.xml", "GET", get_rss_feed)
+	router.add_route("GET", "/", get_posts_collection)
+	router.add_route("GET", "/posts", get_posts_collection)
+	router.add_route("GET", "/posts/*", get_posts_element)
+	router.add_route("GET", "/static/**", get_static_element)
+	router.add_route("GET", "/feeds/rss.xml", get_rss_feed)
 	server.listen(Conf.http.port, Conf.http.host)
 }
 

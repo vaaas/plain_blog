@@ -71,15 +71,6 @@ const mime_types = {
 	".3gpp": "video/3gpp",
 }
 
-// returns whether two arrays have the exact same children
-function array_identity (arr1, arr2) {
-	let len = arr1.length
-	if (len !== arr2.length) return false
-	for (let i = 0; i < len; i++)
-		if (arr1[i] !== arr2[i]) return false
-	return true
-}
-
 function array_to_object (arr) {
 	let obj = new Object()
 	for (let i = 0, len = arr.length; i < len; i++)
@@ -105,13 +96,12 @@ class ResponseConf {
 class Router extends Array {
 	indexOf (route) {
 		for (var i = 0, len = this.length; i < len; i++)
-			if (array_identity(route, this[i].match))
+			if (route.toString() === this[i].match.toString())
 				return i
 		return -1
 	}
 
 	add_route (method, route, handler) {
-		route = route.split("/").slice(1)
 		let i = this.indexOf(route)
 		if (i >= 0) this[i][method] = handler
 		else {
@@ -123,48 +113,18 @@ class Router extends Array {
 	}
 
 	match (req) {
-		let method = req.method
-		let str = req.url.pathname.split("/").slice(1)
+		const method = req.method
+		const str = req.url.pathname
 		for (let i = 0, len = this.length; i < len; i++) {
-			let route = this[i]
-			let params = this.match_route (str, route)
+			const params = this[i].match.exec(req.url.pathname)
 			if (params === null) continue
-			else return [route[method], params]
-		}
-		return null
-	}
-
-	match_route (str, route) {
-		const match = route.match
-		if (str.length < match.length) return null
-		const params = []
-		let i = 0
-		let j = 0
-		while (i < str.length) {
-			if (match[j] === str[i]) {
-				i += 1
-				j += 1
-			} else if (match[j] === "*" && str[i].length > 0) {
-				params.push(str[i])
-				i += 1
-				j += 1
-			} else if (match[j] === "**" && str[i].length > 0) {
-				if (match[j+1]) {
-					let ind = str.indexOf(match[j+1], i)
-					if (ind === -1) return null
-					params.push(str.slice(i, ind).join("/"))
-					i = ind
-					j += 1
-				} else {
-					params.push(str.slice(i).join("/"))
-					i = str.length
-					j += 1
-				}
-			} else {
-				return null
+			else {
+				params.shift()
+				req.params = params
+				return this[i][req.method]
 			}
 		}
-		return params
+		return null
 	}
 }
 
@@ -396,11 +356,11 @@ class Controller {
 
 	init_router () {
 		const router = new Router()
-		router.add_route("GET", "/", this.get_posts_collection.bind(this))
-		router.add_route("GET", "/posts", this.get_posts_collection.bind(this))
-		router.add_route("GET", "/posts/*", this.get_posts_element.bind(this))
-		router.add_route("GET", "/static/**", this.get_static_element.bind(this))
-		router.add_route("GET", "/feeds/rss.xml", this.get_rss_feed.bind(this))
+		router.add_route("GET", RegExp("^/$"), this.get_posts_collection.bind(this))
+		router.add_route("GET", RegExp("^/posts$"), this.get_posts_collection.bind(this))
+		router.add_route("GET", RegExp("^/posts/(.+)$"), this.get_posts_element.bind(this))
+		router.add_route("GET", RegExp("^/static/(.+)$"), this.get_static_element.bind(this))
+		router.add_route("GET", RegExp("^/feeds/rss.xml$"), this.get_rss_feed.bind(this))
 		return router
 	}
 
@@ -422,10 +382,10 @@ class Controller {
 		let match = this.router.match(req)
 		if (match === null)
 			this.serve(res, this.view.code(404))
-		else if (match[0] === undefined)
+		else if (match === undefined)
 			this.serve(res, this.view.code(405))
 		else
-			match[0](req, res, ...match[1])
+			match(req, res)
 	}
 
 	get_posts_collection (req, res) {
@@ -441,16 +401,16 @@ class Controller {
 		})
 	}
 
-	get_posts_element (req, res, name) {
-		if (this.model.exists(name)) {
-			this.serve(res, this.view.post(this.model.get(name)))
+	get_posts_element (req, res) {
+		if (this.model.exists(req.params[0])) {
+			this.serve(res, this.view.post(this.model.get(req.params[0])))
 		} else {
 			this.serve(res, this.view.empty_page())
 		}
 	}
 
-	get_static_element (req, res, what) {
-		let pathname = path.join("./static", what)
+	get_static_element (req, res) {
+		let pathname = path.join("./static", req.params[0])
 		fs.exists(pathname, (exists) => {
 			if (!exists) {
 				this.serve(res, this.view.code(404, "Element doesn't exist"))

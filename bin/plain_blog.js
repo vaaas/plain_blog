@@ -123,20 +123,21 @@ class Router extends Array {
 	}
 
 	match (req) {
+		let method = req.method
+		let str = req.url.pathname.split("/").slice(1)
 		for (let i = 0, len = this.length; i < len; i++) {
-			let match = this.match_route (req, this[i])
-			if (match === null) continue
-			else return match
+			let route = this[i]
+			let params = this.match_route (str, route)
+			if (params === null) continue
+			else return [route[method], params]
 		}
 		return null
 	}
 
-	match_route (req, route) {
-		const method = req.method
-		const str = req.url.pathname.split("/").slice(1)
+	match_route (str, route) {
 		const match = route.match
 		if (str.length < match.length) return null
-		let params = []
+		const params = []
 		let i = 0
 		let j = 0
 		while (i < str.length) {
@@ -163,11 +164,7 @@ class Router extends Array {
 				return null
 			}
 		}
-		if (route.hasOwnProperty(method)) {
-			return [route[method], params]
-		} else {
-			return undefined
-		}
+		return params
 	}
 }
 
@@ -425,7 +422,7 @@ class Controller {
 		let match = this.router.match(req)
 		if (match === null)
 			this.serve(res, this.view.code(404))
-		else if (match === undefined)
+		else if (match[0] === undefined)
 			this.serve(res, this.view.code(405))
 		else
 			match[0](req, res, ...match[1])

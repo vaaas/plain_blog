@@ -15,7 +15,6 @@ const url = require("url")
 const path = require("path")
 const dot = require("dot")
 const cheerio = require("cheerio")
-const sqlite = require("sqlite3")
 
 const mime_types = {
 	".html": "text/html",
@@ -94,29 +93,27 @@ class ResponseConf {
 }
 
 class Router extends Array {
-	indexOf (route) {
+	indexOf (regex) {
 		for (var i = 0, len = this.length; i < len; i++)
-			if (route.toString() === this[i].match.toString())
+			if (regex.toString() === this[i].regex.toString())
 				return i
 		return -1
 	}
 
-	add_route (method, route, handler) {
-		let i = this.indexOf(route)
+	add_route (method, regex, handler) {
+		let i = this.indexOf(regex)
 		if (i >= 0) this[i][method] = handler
 		else {
 			let obj = {}
-			obj["match"] = route
+			obj.regex = regex
 			obj[method] = handler
 			this.push(obj)
 		}
 	}
 
 	match (req) {
-		const method = req.method
-		const str = req.url.pathname
 		for (let i = 0, len = this.length; i < len; i++) {
-			const params = this[i].match.exec(req.url.pathname)
+			const params = this[i].regex.exec(req.url.pathname)
 			if (params === null) continue
 			else {
 				params.shift()
@@ -130,10 +127,6 @@ class Router extends Array {
 
 class Post {
 	constructor (pathname) {
-		this.extract_data(pathname)
-	}
-
-	extract_data (pathname) {
 		this.pathname = pathname
 		this.basename = path.basename(this.pathname)
 		this.mtime = fs.statSync(this.pathname).mtime
@@ -158,10 +151,6 @@ class Post {
 				break
 			}
 		}
-	}
-
-	update () {
-		this.extract_data(this.pathname)
 	}
 
 	has_category (category) {
@@ -190,35 +179,6 @@ class Model {
 			this.posts[this.sorted[i]].id = i
 	}
 
-	// reload the files
-	update () {
-		let posts = fs.readdirSync(path.join(this.pathname, "posts"))
-		let hash = array_to_object(posts)
-		this.purge_non_existent(hash)
-		this.add_update_new(posts)
-		this.init_sorted()
-	}
-
-	purge_non_existent (existent) {
-		// remove files that no longer exist from the database
-		for (let key in this.posts)
-			if (this.posts.hasOwnProperty(key) && !(key in existent))
-				delete this.posts[key]
-	}
-
-	add_update_new (posts) {
-		// add files that don't exist in the database to the database
-		// additionally, update files that were modified
-		let pathname = ""
-		for (let i = 0, len = posts.length; i < len; i++) {
-			pathname = path.join(this.pathname, "posts", posts[i])
-			if (!(this.exists(posts[i])))
-				this.posts[posts[i]] = new Post(pathname)
-			else if (fs.statSync(pathname).mtime > this.posts[posts[i]].mtime)
-				this.posts[posts[i]].update()
-		}
-	}
-
 	// run a query on the data
 	// q: a URI query
 	query (q, callback) {
@@ -226,12 +186,7 @@ class Model {
 		let i = 0
 		let step = 1
 		let counter = this.posts_per_page
-		let cpost
-
-		if (q.newer && q.older) {
-			q.newer = null
-			q.older = null
-		} else if (q.newer) {
+		if (q.newer) {
 			q.newer = parseInt(q.newer, 10)
 			if (Number.isInteger(q.newer)) {
 				i = q.newer - 1
@@ -242,8 +197,8 @@ class Model {
 			if (Number.isInteger(q.older)) i = q.older + 1
 			else q.older = null
 		}
-
-		if (q.category)
+		if (q.category) {
+			let cpost
 			for (; i >= 0 && i < this.length && counter > 0; i += step) {
 				cpost = this.posts[this.sorted[i]]
 				if (cpost.has_category(q.category)) {
@@ -251,15 +206,14 @@ class Model {
 					counter -= 1
 				}
 			}
-		else
+		} else {
 			for (; i >= 0 && i < this.length && counter > 0; i += step) {
-				cpost = this.posts[this.sorted[i]]
-				results.push(cpost)
+				results.push(this.posts[this.sorted[i]])
 				counter -= 1
 			}
-		if (step === -1)
-			results.reverse()
-		callback(null, results)
+		}
+		if (step === -1) results.reverse()
+		callback(results)
 	}
 
 	// return whether post exists in database
@@ -390,10 +344,8 @@ class Controller {
 
 	get_posts_collection (req, res) {
 		let query = req.url.query
-		this.model.query(query, (err, results) => {
-			if (err) {
-				this.serve(res, this.view.code (500, err.message))
-			} else if (results.length > 0) {
+		this.model.query(query, (results) => {
+			if (results.length > 0) {
 				this.serve(res, this.view.post_list(results, query))
 			} else {
 				this.serve(res, this.view.empty_page())
@@ -402,8 +354,9 @@ class Controller {
 	}
 
 	get_posts_element (req, res) {
-		if (this.model.exists(req.params[0])) {
-			this.serve(res, this.view.post(this.model.get(req.params[0])))
+		let post = this.mode.exists(req.params[0])
+		if (post !== undefined) {
+			this.serve(res, this.view.post(post))
 		} else {
 			this.serve(res, this.view.empty_page())
 		}
@@ -421,7 +374,7 @@ class Controller {
 	}
 
 	get_rss_feed (req, res) {
-		this.model.query({}, (err, results) => {
+		this.model.query({}, (results) => {
 			if (results.length === 0) {
 				this.serve(res, this.view.code(404))
 			} else {

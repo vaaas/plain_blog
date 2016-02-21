@@ -362,7 +362,11 @@ class Controller {
 		}
 		let stream
 		try {
-			stream = fs.createWriteStream(pathname)
+			stream = fs.createWriteStream(pathname, {
+				flags: "w",
+				defaultEncoding: "binary",
+				mode: 0o640
+			})
 		} catch(e) {
 			return this.serve(res, this.view.code(500, ""+e))
 		}

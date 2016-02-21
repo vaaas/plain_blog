@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 // jshint esnext:true
 // jshint asi:true
-// jshint -W009
-// jshint -W010
-// jshint -W069
-// jshint -W083
 
 "use strict"
 
@@ -71,7 +67,7 @@ const mime_types = {
 }
 
 function array_to_object (arr) {
-	let obj = new Object()
+	let obj = {}
 	for (let i = 0, len = arr.length; i < len; i++)
 		obj[arr[i]] = i
 	return obj
@@ -80,7 +76,8 @@ function array_to_object (arr) {
 // return the mime type of a file
 function determine_mime_type (path) {
 	let index = path.slice(path.lastIndexOf("."))
-	if (index in mime_types) return mime_types [index]
+	let mime = mime_types[index]
+	if (mime !== undefined) return mime
 	else return "application/octet_stream"
 }
 
@@ -163,7 +160,7 @@ class Model {
 		this.posts_per_page = posts_per_page
 		this.pathname = pathname
 		let posts = fs.readdirSync(this.pathname)
-		this.posts = new Object()
+		this.posts = {}
 		for (let i = 0, len = posts.length; i < len; i++)
 			this.posts[posts[i]] = new Post(path.join(this.pathname, posts[i]))
 		this.init_sorted()
@@ -182,7 +179,7 @@ class Model {
 	// run a query on the data
 	// q: a URI query
 	query (q, callback) {
-		let results = new Array()
+		let results = []
 		let i = 0
 		let step = 1
 		let counter = this.posts_per_page
@@ -191,11 +188,10 @@ class Model {
 			if (Number.isInteger(q.newer)) {
 				i = q.newer - 1
 				step = -1
-			} else q.newer = null
+			}
 		} else if (q.older) {
 			q.older = parseInt (q.older, 10)
 			if (Number.isInteger(q.older)) i = q.older + 1
-			else q.older = null
 		}
 		if (q.category) {
 			let cpost
@@ -300,9 +296,10 @@ class View {
 }
 
 class Controller {
-	constructor (model, view, port, hostname) {
+	constructor (model, view, port, hostname, password) {
 		this.model = model
 		this.view = view
+		this.password = password
 		this.router = this.init_router()
 		this.server = http.createServer(this.request_listener.bind(this))
 		this.server.listen(port, hostname)
@@ -311,6 +308,7 @@ class Controller {
 	init_router () {
 		const router = new Router()
 		router.add_route("GET", RegExp("^/$"), this.get_posts_collection.bind(this))
+		router.add_route("PUT", RegExp("^(.+)$"), this.upload.bind(this))
 		router.add_route("GET", RegExp("^/posts$"), this.get_posts_collection.bind(this))
 		router.add_route("GET", RegExp("^/posts/(.+)$"), this.get_posts_element.bind(this))
 		router.add_route("GET", RegExp("^/static/(.+)$"), this.get_static_element.bind(this))
@@ -321,13 +319,9 @@ class Controller {
 	// serve a response
 	// conf: a response configuration object
 	serve (res, conf) {
-		// we accept both streams and raw data
 		res.writeHead(conf.code, conf.message, conf.headers)
-		if (conf.data.constructor === fs.ReadStream) {
-			conf.data.pipe(res)
-		} else {
-			res.end(conf.data)
-		}
+		if (conf.data.constructor === fs.ReadStream) conf.data.pipe(res)
+		else res.end(conf.data)
 	}
 
 	request_listener (req, res) {
@@ -340,6 +334,42 @@ class Controller {
 			this.serve(res, this.view.code(405))
 		else
 			match(req, res)
+	}
+
+	authorised (req) {
+		return (req.url.query.password === this.password)
+	}
+
+	create_directories(dirname) {
+		try {
+			fs.mkdirSync(dirname, 0o710)
+		} catch(e) {
+			if (e.code === "ENOENT") {
+				this.create_directories(path.dirname(dirname))
+				this.create_directories(dirname)
+			}
+		}
+	}
+
+	upload (req, res) {
+		if (!this.authorised(req))
+			return this.serve(res, this.view.code(403, "wrong password"))
+		const pathname = path.join(".", req.params[0])
+		try {
+			this.create_directories(path.dirname(pathname))
+		} catch(e) {
+			return this.serve(res, this.view.code(500, ""+e))
+		}
+		let stream
+		try {
+			stream = fs.createWriteStream(pathname)
+		} catch(e) {
+			return this.serve(res, this.view.code(500, ""+e))
+		}
+		req.pipe(stream)
+		req.on("end", () => {
+			this.serve(res, this.view.code(200, pathname))
+		})
 	}
 
 	get_posts_collection (req, res) {
@@ -396,7 +426,8 @@ function Conf () {
 			keywords: process.env.KEYWORDS ? process.env.KEYWORDS.split(", ") : ["user didn't configure blog keywords"],
 			author: process.env.AUTHOR || "User didn't configure blog author",
 			posts_per_page: process.env.PPP || 10,
-		}
+		},
+		password: process.env.PASSWORD || "password"
 	}
 }
 
@@ -412,7 +443,8 @@ function main () {
 		model,
 		view,
 		conf.http.port,
-		conf.http.host
+		conf.http.host,
+		conf.password
 	)
 	console.log(`Server listening to ${conf.http.host}:${conf.http.port}`)
 }

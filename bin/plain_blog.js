@@ -82,9 +82,9 @@ function determine_mime_type (path) {
 }
 
 class ResponseConf {
-	constructor (code, message, data) {
+	constructor (code, headers, data) {
 		this.code = code
-		this.message = message
+		this.headers = headers
 		this.data = data
 	}
 }
@@ -319,7 +319,7 @@ class Controller {
 	// serve a response
 	// conf: a response configuration object
 	serve (res, conf) {
-		res.writeHead(conf.code, conf.message, conf.headers)
+		res.writeHead(conf.code, conf.headers)
 		if (conf.data.constructor === fs.ReadStream) conf.data.pipe(res)
 		else res.end(conf.data)
 	}

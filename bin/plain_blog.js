@@ -166,6 +166,20 @@ class Model {
 		this.init_sorted()
 	}
 
+	update () {
+		let np = fs.readdirSync(this.pathname)
+		for (let i = 0, len = np.length; i < len; i++) {
+			let cpath = path.join(this.pathname, np[i])
+			if (!(cpath in this.posts))
+				this.posts[cpath] = new Post(cpath)
+			else if (fs.statSync(cpath).mtime !== this.posts[cpath].mtime)
+				this.posts[cpath] = new Post(cpath)
+		}
+		for (i = 0, len = this.length; i < len; i++)
+			if (!(cpath in np)) delete this.posts[this.sorted[i]]
+		this.init_sorted()
+	}
+
 	// inits the array of sorted posts (reverse alphabetical order)
 	init_sorted () {
 		this.sorted = Object.keys(this.posts)
@@ -301,8 +315,20 @@ class Controller {
 		this.view = view
 		this.password = password
 		this.router = this.init_router()
+		this.init_process()
 		this.server = http.createServer(this.request_listener.bind(this))
 		this.server.listen(port, hostname)
+	}
+
+	init_process() {
+		process.on("SIGHUP", this.model.update.bind(this.model))
+		process.on("SIGTERM", this.quit.bind(this))
+		process.on("SIGINT", this.quit.bind(this))
+	}
+
+	quit() {
+		console.log("Received SIGINT/SIGTERM. Exiting gracefully...")
+		process.quit(0)
 	}
 
 	init_router () {
@@ -372,6 +398,7 @@ class Controller {
 		}
 		req.pipe(stream)
 		req.on("end", () => {
+			if (pathname.startsWith("/posts/") this.model.update()
 			this.serve(res, this.view.code(200, pathname))
 		})
 	}

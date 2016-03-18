@@ -180,7 +180,6 @@ class Model {
 		this.init_sorted()
 	}
 
-	// inits the array of sorted posts (reverse alphabetical order)
 	init_sorted () {
 		this.sorted = Object.keys(this.posts)
 		this.sorted.sort()
@@ -190,8 +189,6 @@ class Model {
 			this.posts[this.sorted[i]].id = i
 	}
 
-	// run a query on the data
-	// q: a URI query
 	query (q, callback) {
 		let results = []
 		let i = 0
@@ -226,12 +223,10 @@ class Model {
 		callback(results)
 	}
 
-	// return whether post exists in database
 	exists (post) {
 		return (post in this.posts)
 	}
 
-	// get post from database
 	get (post) {
 		return (this.posts[post])
 	}
@@ -453,7 +448,7 @@ function Conf () {
 		},
 		blog: {
 			title: process.env.TITLE || "User didn't configure blog title",
-			description: process.env.DESCRIPTION || "USer didn't configure blog description",
+			description: process.env.DESCRIPTION || "User didn't configure blog description",
 			keywords: process.env.KEYWORDS ? process.env.KEYWORDS.split(", ") : ["user didn't configure blog keywords"],
 			author: process.env.AUTHOR || "User didn't configure blog author",
 			posts_per_page: process.env.PPP || 10,

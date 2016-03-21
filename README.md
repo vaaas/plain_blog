@@ -38,8 +38,6 @@ elements:
 - The ```meta``` keywords element for the post's categories / tags.
 - The ```meta``` date element for the post's creation date.
 
-You can place the posts where you want manually, or you can make a PUT request
-targetting any element with its raw binary contents in the request body. There
-are some curl scripts included as examples.
+You can upload posts using ```rsync``` or ```scp``` or whatever it is you fancy best.
 
 Posts are sorted in reverse alphabetical order based on their file names.

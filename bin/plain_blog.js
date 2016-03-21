@@ -4,7 +4,6 @@
 
 "use strict"
 
-// libraries
 const http = require("http")
 const fs = require("fs")
 const url = require("url")
@@ -75,7 +74,7 @@ function array_to_object (arr) {
 
 function determine_mime_type (path) {
 	let index = path.slice(path.lastIndexOf("."))
-	else return mime_types[index] || "application/octet_stream"
+	return mime_types[index] || "application/octet_stream"
 }
 
 class ResponseConf {
@@ -112,7 +111,7 @@ class Router extends Array {
 			else {
 				params.shift()
 				req.params = params
-				return this[i][req.method]
+				return this[i]
 			}
 		}
 		return null
@@ -125,12 +124,10 @@ class Post {
 		this.basename = path.basename(this.pathname)
 		this.mtime = fs.statSync(this.pathname).mtime
 
-		// blog posts are in html, parse them and extract data from them
 		let $ = cheerio.load(fs.readFileSync(pathname, {"encoding":"utf-8"}))
 		this.title = $("h1:first-of-type").html().trim()
 		this.blurb = $("#blurb").html().trim()
 		this.content = $("body").html().trim()
-		// the meta element has a different API because it likes to feel special
 		let meta = $("meta")
 		for (let i = 0; i < meta.length; i++) {
 			switch (meta[i].attribs.name) {
@@ -172,8 +169,10 @@ class Model {
 			else if (fs.statSync(cpath).mtime !== this.posts[cpath].mtime)
 				this.posts[cpath] = new Post(cpath)
 		}
-		for (i = 0, len = this.length; i < len; i++)
+		for (let i = 0, len = this.length; i < len; i++) {
+			let cpath = path.join(this.pathname, np[i])
 			if (!(cpath in np)) delete this.posts[this.sorted[i]]
+		}
 		this.init_sorted()
 	}
 
@@ -186,7 +185,7 @@ class Model {
 			this.posts[this.sorted[i]].id = i
 	}
 
-	query (q, callback) {
+	query (q) {
 		let results = []
 		let i = 0
 		let step = 1
@@ -217,11 +216,7 @@ class Model {
 			}
 		}
 		if (step === -1) results.reverse()
-		callback(results)
-	}
-
-	exists (post) {
-		return (post in this.posts)
+		return results
 	}
 
 	get (post) {
@@ -302,10 +297,9 @@ class View {
 }
 
 class Controller {
-	constructor (model, view, port, hostname, password) {
+	constructor (model, view, port, hostname) {
 		this.model = model
 		this.view = view
-		this.password = password
 		this.router = this.init_router()
 		this.init_process()
 		this.server = http.createServer(this.request_listener.bind(this))
@@ -326,7 +320,6 @@ class Controller {
 	init_router () {
 		const router = new Router()
 		router.add_route("GET", RegExp("^/$"), this.get_posts_collection.bind(this))
-		router.add_route("PUT", RegExp("^(.+)$"), this.upload.bind(this))
 		router.add_route("GET", RegExp("^/posts$"), this.get_posts_collection.bind(this))
 		router.add_route("GET", RegExp("^/posts/(.+)$"), this.get_posts_element.bind(this))
 		router.add_route("GET", RegExp("^/static/(.+)$"), this.get_static_element.bind(this))
@@ -334,8 +327,6 @@ class Controller {
 		return router
 	}
 
-	// serve a response
-	// conf: a response configuration object
 	serve (res, conf) {
 		res.writeHead(conf.code, conf.headers)
 		if (conf.data.constructor === fs.ReadStream) conf.data.pipe(res)
@@ -348,66 +339,24 @@ class Controller {
 		let match = this.router.match(req)
 		if (match === null)
 			this.serve(res, this.view.code(404))
-		else if (match === undefined)
+		else if (match[req.method] === undefined)
 			this.serve(res, this.view.code(405))
 		else
-			match(req, res)
-	}
-
-	authorised (req) {
-		return (req.url.query.password === this.password)
-	}
-
-	create_directories(dirname) {
-		try {
-			fs.mkdirSync(dirname, 0o710)
-		} catch(e) {
-			if (e.code === "ENOENT") {
-				this.create_directories(path.dirname(dirname))
-				this.create_directories(dirname)
-			}
-		}
-	}
-
-	upload (req, res) {
-		if (!this.authorised(req))
-			return this.serve(res, this.view.code(403, "wrong password"))
-		const pathname = path.join(".", req.params[0])
-		try {
-			this.create_directories(path.dirname(pathname))
-		} catch(e) {
-			return this.serve(res, this.view.code(500, ""+e))
-		}
-		let stream
-		try {
-			stream = fs.createWriteStream(pathname, {
-				flags: "w",
-				defaultEncoding: "binary",
-				mode: 0o640
-			})
-		} catch(e) {
-			return this.serve(res, this.view.code(500, ""+e))
-		}
-		req.pipe(stream)
-		req.on("end", () => {
-			if (pathname.startsWith("/posts/") this.model.update()
-			this.serve(res, this.view.code(200, pathname))
-		})
+			match[req.method](req, res)
 	}
 
 	get_posts_collection (req, res) {
 		let query = req.url.query
-		this.model.query(query, (results) => {
-			if (results.length > 0) {
-				this.serve(res, this.view.post_list(results, query))
-			} else {
-				this.serve(res, this.view.empty_page())
-			}
-		})
+		const results = this.model.query(query)
+		if (results.length > 0) {
+			this.serve(res, this.view.post_list(results, query))
+		} else {
+			this.serve(res, this.view.empty_page())
+		}
 	}
 
 	get_posts_element (req, res) {
-		let post = this.mode.exists(req.params[0])
+		let post = this.model.get(req.params[0])
 		if (post !== undefined) {
 			this.serve(res, this.view.post(post))
 		} else {
@@ -417,8 +366,8 @@ class Controller {
 
 	get_static_element (req, res) {
 		let pathname = path.join("./static", req.params[0])
-		fs.exists(pathname, (exists) => {
-			if (!exists) {
+		fs.access(pathname, fs.R_OK, (err) => {
+			if (err) {
 				this.serve(res, this.view.code(404, "Element doesn't exist"))
 			} else {
 				this.serve(res, this.view.file(pathname))
@@ -427,13 +376,12 @@ class Controller {
 	}
 
 	get_rss_feed (req, res) {
-		this.model.query({}, (results) => {
-			if (results.length === 0) {
-				this.serve(res, this.view.code(404))
-			} else {
-				this.serve(res, this.view.rss(results))
-			}
-		})
+		const results = this.model.query({})
+		if (results.length === 0) {
+			this.serve(res, this.view.code(404))
+		} else {
+			this.serve(res, this.view.rss(results))
+		}
 	}
 }
 
@@ -449,8 +397,7 @@ function Conf () {
 			keywords: process.env.KEYWORDS ? process.env.KEYWORDS.split(", ") : ["user didn't configure blog keywords"],
 			author: process.env.AUTHOR || "User didn't configure blog author",
 			posts_per_page: process.env.PPP || 10,
-		},
-		password: process.env.PASSWORD || "password"
+		}
 	}
 }
 
@@ -466,8 +413,7 @@ function main () {
 		model,
 		view,
 		conf.http.port,
-		conf.http.host,
-		conf.password
+		conf.http.host
 	)
 	console.log(`Server listening to ${conf.http.host}:${conf.http.port}`)
 }

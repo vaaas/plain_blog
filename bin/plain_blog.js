@@ -73,12 +73,9 @@ function array_to_object (arr) {
 	return obj
 } 
 
-// return the mime type of a file
 function determine_mime_type (path) {
 	let index = path.slice(path.lastIndexOf("."))
-	let mime = mime_types[index]
-	if (mime !== undefined) return mime
-	else return "application/octet_stream"
+	else return mime_types[index] || "application/octet_stream"
 }
 
 class ResponseConf {

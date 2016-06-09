@@ -1,6 +1,5 @@
 {
 	"name": "plain_blog",
-	"version": "1.0.0",
 	"description": "A very plain blog",
 	"bugs": { "url": "https://github.com/vaaas/plain_blog/issues" },
 	"license": "WTFPL",
@@ -9,7 +8,8 @@
 	"bin": { "plain_blog.js", "bin/plain_blog.js" },
 	"dependencies": {
 		"dot": "*",
-		"cheerio": "*"
+		"cheerio": "*",
+		"regex-router": "git://github.com/vaaas/regex-router.git"
 	},
 	"engines": {
 		"node": ">=4.0.0"

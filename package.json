@@ -9,7 +9,8 @@
 	"dependencies": {
 		"dot": "*",
 		"cheerio": "*",
-		"regex-router": "git://github.com/vaaas/regex-router.git"
+		"regex-router": "git://github.com/vaaas/regex-router.git",
+		"determine-mime-type": "git://github.com/vaaas/determine-mime-type.git"
 	},
 	"engines": {
 		"node": ">=4.0.0"

@@ -10,8 +10,8 @@ const url = require("url")
 const path = require("path")
 const dot = require("dot")
 const cheerio = require("cheerio")
-const regex-router = require("regex-router")
-const determine-mime-type = require("determine-mime-type")
+const regex_router = require("regex-router")
+const determine_mime_type = require("determine-mime-type")
 
 function array_to_object (arr) {
 	let obj = {}
@@ -164,7 +164,7 @@ class View {
 	file (pathname) {
 		return new ResponseConf(
 			200,
-			{"Content-type": determine-mime-type(pathname)},
+			{"Content-type": determine_mime_type(pathname)},
 			fs.createReadStream(pathname)
 		)
 	}
@@ -228,7 +228,7 @@ class Controller {
 	}
 
 	init_router () {
-		const router = new regex-router()
+		const router = new regex_router()
 		router.add_route("GET", RegExp("^/$"), this.get_posts_collection.bind(this))
 		router.add_route("GET", RegExp("^/posts$"), this.get_posts_collection.bind(this))
 		router.add_route("GET", RegExp("^/posts/(.+)$"), this.get_posts_element.bind(this))

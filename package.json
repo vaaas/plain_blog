@@ -5,7 +5,6 @@
 	"license": "WTFPL",
 	"files": ["bin", "static", "templates"],
 	"main": "bin/plain_blog.js",
-	"bin": { "plain_blog.js", "bin/plain_blog.js" },
 	"dependencies": {
 		"dot": "*",
 		"cheerio": "*",

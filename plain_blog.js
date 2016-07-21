@@ -10,7 +10,6 @@ const url = require("url")
 const path = require("path")
 const dot = require("dot")
 const cheerio = require("cheerio")
-const regex_router = require("regex-router")
 const determine_mime_type = require("determine-mime-type")
 
 function array_to_object (arr) {
@@ -210,7 +209,6 @@ class Controller {
 	constructor (model, view, port, hostname) {
 		this.model = model
 		this.view = view
-		this.router = this.init_router()
 		this.init_process()
 		this.server = http.createServer(this.request_listener.bind(this))
 		this.server.listen(port, hostname)
@@ -227,14 +225,27 @@ class Controller {
 		process.quit(0)
 	}
 
-	init_router () {
-		const router = new regex_router()
-		router.add_route("GET", RegExp("^/$"), this.get_posts_collection.bind(this))
-		router.add_route("GET", RegExp("^/posts$"), this.get_posts_collection.bind(this))
-		router.add_route("GET", RegExp("^/posts/(.+)$"), this.get_posts_element.bind(this))
-		router.add_route("GET", RegExp("^/static/(.+)$"), this.get_static_element.bind(this))
-		router.add_route("GET", RegExp("^/feeds/rss.xml$"), this.get_rss_feed.bind(this))
-		return router
+	match(req) {
+		const p = req.url.pathname
+		if (p === "/" || p === "/posts") {
+			if (req.method !== "GET") return this.method_not_allowed
+			else return this.get_posts_collection
+		} else if (p.startsWith("/posts/")) {
+			if (req.method !== "GET") return this.method_not_allowed
+			else {
+				req.params = [p.slice("/posts".length)]
+				return this.get_posts_element
+			}
+		} else if (p.startsWith("/static/")) {
+			if (req.method !== "GET") return this.method_not_allowed
+			else {
+				req.params = [p.slice("/static".length)]
+				return this.get_static_element
+			}
+		} else if (p === "/feeds/rss.xml") {
+			if (req.method !== "GET") return this.method_not_allowed
+			else return this.get_rss_feed
+		} else { return this.not_found }
 	}
 
 	serve (res, conf) {
@@ -246,13 +257,15 @@ class Controller {
 	request_listener (req, res) {
 		req.url = url.parse(req.url, true)
 		req.url.basename = path.basename(req.url.pathname)
-		let match = this.router.match(req)
-		if (match === null)
-			this.serve(res, this.view.code(404))
-		else if (match[req.method] === undefined)
-			this.serve(res, this.view.code(405))
-		else
-			match[req.method](req, res)
+		this.match(req)(req, res)
+	}
+
+	not_found (req, res) {
+		this.serve(res, this.view.code(404))
+	}
+
+	method_not_allowed (req,res) {
+		this.serve(res, this.view.code(405))
 	}
 
 	get_posts_collection (req, res) {
